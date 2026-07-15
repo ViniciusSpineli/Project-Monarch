@@ -1,166 +1,177 @@
+import { sql } from "drizzle-orm";
 import {
-  boolean,
-  int,
-  json,
-  mysqlEnum,
-  mysqlTable,
+  integer,
+  sqliteTable,
   text,
-  timestamp,
   uniqueIndex,
-  varchar,
-} from "drizzle-orm/mysql-core";
+} from "drizzle-orm/sqlite-core";
 
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+const createdAt = () =>
+  integer("createdAt", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`);
+
+const updatedAt = () =>
+  integer("updatedAt", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`)
+    .$onUpdate(() => new Date());
+
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  openId: text("openId").notNull().unique(),
   name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  email: text("email"),
+  loginMethod: text("loginMethod"),
+  role: text("role", { enum: ["user", "admin"] }).default("user").notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+  lastSignedIn: integer("lastSignedIn", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
 });
 
-export const character = mysqlTable("character", {
-  id: int("id").primaryKey().default(1),
-  name: varchar("name", { length: 80 }).default("Caçador").notNull(),
-  level: int("level").default(7).notNull(),
-  currentXp: int("currentXp").default(420).notNull(),
-  totalXp: int("totalXp").default(2140).notNull(),
-  title: varchar("title", { length: 80 }).default("Caçador Desperto").notNull(),
-  rank: varchar("rank", { length: 10 }).default("E").notNull(),
-  streak: int("streak").default(6).notNull(),
-  longestStreak: int("longestStreak").default(11).notNull(),
-  lastActiveDate: varchar("lastActiveDate", { length: 10 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const character = sqliteTable("character", {
+  id: integer("id").primaryKey().default(1),
+  name: text("name").default("Caçador").notNull(),
+  level: integer("level").default(1).notNull(),
+  currentXp: integer("currentXp").default(0).notNull(),
+  totalXp: integer("totalXp").default(0).notNull(),
+  title: text("title").default("Caçador Desperto").notNull(),
+  rank: text("rank").default("E").notNull(),
+  streak: integer("streak").default(0).notNull(),
+  longestStreak: integer("longestStreak").default(0).notNull(),
+  lastActiveDate: text("lastActiveDate"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 });
 
-export const attributes = mysqlTable("attributes", {
-  id: int("id").autoincrement().primaryKey(),
-  key: varchar("key", { length: 32 }).notNull(),
-  label: varchar("label", { length: 48 }).notNull(),
-  value: int("value").default(1).notNull(),
-  progress: int("progress").default(0).notNull(),
-  color: varchar("color", { length: 16 }).notNull(),
-  icon: varchar("icon", { length: 32 }).notNull(),
+export const attributes = sqliteTable("attributes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  key: text("key").notNull(),
+  label: text("label").notNull(),
+  value: integer("value").default(1).notNull(),
+  progress: integer("progress").default(0).notNull(),
+  color: text("color").notNull(),
+  icon: text("icon").notNull(),
 }, table => ({ keyUnique: uniqueIndex("attributes_key_unique").on(table.key) }));
 
-export const attributeHistory = mysqlTable("attribute_history", {
-  id: int("id").autoincrement().primaryKey(),
-  attributeKey: varchar("attributeKey", { length: 32 }).notNull(),
-  delta: int("delta").notNull(),
-  reason: varchar("reason", { length: 160 }).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+export const attributeHistory = sqliteTable("attribute_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  attributeKey: text("attributeKey").notNull(),
+  delta: integer("delta").notNull(),
+  reason: text("reason").notNull(),
+  createdAt: createdAt(),
 });
 
-export const skills = mysqlTable("skills", {
-  id: int("id").autoincrement().primaryKey(),
-  slug: varchar("slug", { length: 48 }).notNull(),
-  name: varchar("name", { length: 80 }).notNull(),
-  level: int("level").default(1).notNull(),
-  xp: int("xp").default(0).notNull(),
-  totalMinutes: int("totalMinutes").default(0).notNull(),
-  rank: varchar("rank", { length: 10 }).default("E").notNull(),
-  icon: varchar("icon", { length: 32 }).notNull(),
-  lastEvolvedAt: timestamp("lastEvolvedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+export const skills = sqliteTable("skills", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  level: integer("level").default(1).notNull(),
+  xp: integer("xp").default(0).notNull(),
+  totalMinutes: integer("totalMinutes").default(0).notNull(),
+  rank: text("rank").default("E").notNull(),
+  icon: text("icon").notNull(),
+  lastEvolvedAt: integer("lastEvolvedAt", { mode: "timestamp" }),
+  createdAt: createdAt(),
 }, table => ({ slugUnique: uniqueIndex("skills_slug_unique").on(table.slug) }));
 
-export const missions = mysqlTable("missions", {
-  id: int("id").autoincrement().primaryKey(),
-  title: varchar("title", { length: 160 }).notNull(),
+export const missions = sqliteTable("missions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
   description: text("description"),
-  type: mysqlEnum("type", ["daily", "weekly", "monthly", "unique", "epic", "challenge", "secret"]).default("daily").notNull(),
-  category: varchar("category", { length: 48 }).default("Disciplina").notNull(),
-  xpReward: int("xpReward").default(25).notNull(),
-  durationMinutes: int("durationMinutes").default(0).notNull(),
-  skillSlug: varchar("skillSlug", { length: 48 }),
-  priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium").notNull(),
-  status: mysqlEnum("status", ["active", "completed", "expired"]).default("active").notNull(),
-  dueDate: varchar("dueDate", { length: 10 }).notNull(),
-  isSystem: boolean("isSystem").default(false).notNull(),
-  completedAt: timestamp("completedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  type: text("type", { enum: ["daily", "weekly", "monthly", "unique", "epic", "challenge", "secret"] }).default("daily").notNull(),
+  category: text("category").default("Disciplina").notNull(),
+  xpReward: integer("xpReward").default(25).notNull(),
+  durationMinutes: integer("durationMinutes").default(0).notNull(),
+  skillSlug: text("skillSlug"),
+  priority: text("priority", { enum: ["low", "medium", "high", "critical"] }).default("medium").notNull(),
+  status: text("status", { enum: ["active", "completed", "expired"] }).default("active").notNull(),
+  dueDate: text("dueDate").notNull(),
+  isSystem: integer("isSystem", { mode: "boolean" }).default(false).notNull(),
+  completedAt: integer("completedAt", { mode: "timestamp" }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 });
 
-export const achievements = mysqlTable("achievements", {
-  id: int("id").autoincrement().primaryKey(),
-  code: varchar("code", { length: 64 }).notNull(),
-  title: varchar("title", { length: 120 }).notNull(),
+export const achievements = sqliteTable("achievements", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  code: text("code").notNull(),
+  title: text("title").notNull(),
   description: text("description"),
-  rarity: mysqlEnum("rarity", ["common", "rare", "epic", "legendary"]).default("common").notNull(),
-  icon: varchar("icon", { length: 32 }).default("Trophy").notNull(),
-  unlockedAt: timestamp("unlockedAt"),
-  progress: int("progress").default(0).notNull(),
-  target: int("target").default(1).notNull(),
+  rarity: text("rarity", { enum: ["common", "rare", "epic", "legendary"] }).default("common").notNull(),
+  icon: text("icon").default("Trophy").notNull(),
+  unlockedAt: integer("unlockedAt", { mode: "timestamp" }),
+  progress: integer("progress").default(0).notNull(),
+  target: integer("target").default(1).notNull(),
 }, table => ({ codeUnique: uniqueIndex("achievements_code_unique").on(table.code) }));
 
-export const activities = mysqlTable("activities", {
-  id: int("id").autoincrement().primaryKey(),
-  type: mysqlEnum("type", ["mission", "level", "attribute", "skill", "achievement", "focus", "boss", "journal"]).notNull(),
-  title: varchar("title", { length: 180 }).notNull(),
+export const activities = sqliteTable("activities", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  type: text("type", { enum: ["mission", "level", "attribute", "skill", "achievement", "focus", "boss", "journal"] }).notNull(),
+  title: text("title").notNull(),
   description: text("description"),
-  xp: int("xp").default(0).notNull(),
-  metadata: json("metadata"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  xp: integer("xp").default(0).notNull(),
+  metadata: text("metadata", { mode: "json" }),
+  createdAt: createdAt(),
 });
 
-export const dailyActivity = mysqlTable("daily_activity", {
-  id: int("id").autoincrement().primaryKey(),
-  date: varchar("date", { length: 10 }).notNull(),
-  xp: int("xp").default(0).notNull(),
-  missions: int("missions").default(0).notNull(),
-  focusMinutes: int("focusMinutes").default(0).notNull(),
-  studyMinutes: int("studyMinutes").default(0).notNull(),
-  workouts: int("workouts").default(0).notNull(),
-  cardioMinutes: int("cardioMinutes").default(0).notNull(),
+export const dailyActivity = sqliteTable("daily_activity", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  date: text("date").notNull(),
+  xp: integer("xp").default(0).notNull(),
+  missions: integer("missions").default(0).notNull(),
+  focusMinutes: integer("focusMinutes").default(0).notNull(),
+  studyMinutes: integer("studyMinutes").default(0).notNull(),
+  workouts: integer("workouts").default(0).notNull(),
+  cardioMinutes: integer("cardioMinutes").default(0).notNull(),
 }, table => ({ dateUnique: uniqueIndex("daily_activity_date_unique").on(table.date) }));
 
-export const notifications = mysqlTable("notifications", {
-  id: int("id").autoincrement().primaryKey(),
-  type: mysqlEnum("type", ["level", "skill", "achievement", "streak", "title", "mission", "system"]).notNull(),
-  title: varchar("title", { length: 120 }).notNull(),
+export const notifications = sqliteTable("notifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  type: text("type", { enum: ["level", "skill", "achievement", "streak", "title", "mission", "system"] }).notNull(),
+  title: text("title").notNull(),
   message: text("message").notNull(),
-  isRead: boolean("isRead").default(false).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  isRead: integer("isRead", { mode: "boolean" }).default(false).notNull(),
+  createdAt: createdAt(),
 });
 
-export const focusSessions = mysqlTable("focus_sessions", {
-  id: int("id").autoincrement().primaryKey(),
-  skillSlug: varchar("skillSlug", { length: 48 }).notNull(),
-  plannedMinutes: int("plannedMinutes").notNull(),
-  actualMinutes: int("actualMinutes").notNull(),
-  xpReward: int("xpReward").notNull(),
-  completedAt: timestamp("completedAt").defaultNow().notNull(),
+export const focusSessions = sqliteTable("focus_sessions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  skillSlug: text("skillSlug").notNull(),
+  plannedMinutes: integer("plannedMinutes").notNull(),
+  actualMinutes: integer("actualMinutes").notNull(),
+  xpReward: integer("xpReward").notNull(),
+  completedAt: integer("completedAt", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
 });
 
-export const bosses = mysqlTable("bosses", {
-  id: int("id").autoincrement().primaryKey(),
-  title: varchar("title", { length: 160 }).notNull(),
+export const bosses = sqliteTable("bosses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
   description: text("description"),
-  metric: mysqlEnum("metric", ["missions", "focusMinutes", "studyMinutes", "workouts", "cardioMinutes"]).notNull(),
-  target: int("target").notNull(),
-  current: int("current").default(0).notNull(),
-  unit: varchar("unit", { length: 32 }).notNull(),
-  xpReward: int("xpReward").notNull(),
-  status: mysqlEnum("status", ["active", "defeated", "expired"]).default("active").notNull(),
-  weekKey: varchar("weekKey", { length: 10 }).notNull(),
-  achievementCode: varchar("achievementCode", { length: 64 }).notNull(),
-  defeatedAt: timestamp("defeatedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  metric: text("metric", { enum: ["missions", "focusMinutes", "studyMinutes", "workouts", "cardioMinutes"] }).notNull(),
+  target: integer("target").notNull(),
+  current: integer("current").default(0).notNull(),
+  unit: text("unit").notNull(),
+  xpReward: integer("xpReward").notNull(),
+  status: text("status", { enum: ["active", "defeated", "expired"] }).default("active").notNull(),
+  weekKey: text("weekKey").notNull(),
+  achievementCode: text("achievementCode").notNull(),
+  defeatedAt: integer("defeatedAt", { mode: "timestamp" }),
+  createdAt: createdAt(),
 });
 
-export const journalEntries = mysqlTable("journal_entries", {
-  id: int("id").autoincrement().primaryKey(),
-  date: varchar("date", { length: 10 }).notNull(),
-  title: varchar("title", { length: 160 }).notNull(),
+export const journalEntries = sqliteTable("journal_entries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  date: text("date").notNull(),
+  title: text("title").notNull(),
   content: text("content").notNull(),
-  mood: mysqlEnum("mood", ["focused", "proud", "neutral", "tired", "challenged"]).default("neutral").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  mood: text("mood", { enum: ["focused", "proud", "neutral", "tired", "challenged"] }).default("neutral").notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 });
 
 export type User = typeof users.$inferSelect;

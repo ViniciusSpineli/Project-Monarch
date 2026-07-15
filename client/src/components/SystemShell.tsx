@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Activity,
   BarChart3,
@@ -9,6 +10,7 @@ import {
   Crosshair,
   Flame,
   LayoutDashboard,
+  LogOut,
   Menu,
   ScrollText,
   Shield,
@@ -45,6 +47,7 @@ export default function SystemShell({ children }: { children: React.ReactNode })
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const { logout, loggingOut } = useAuth();
   const dashboard = trpc.dashboard.get.useQuery(undefined, { staleTime: 20_000, refetchOnWindowFocus: false });
   const utils = trpc.useUtils();
   const markRead = trpc.notifications.markAllRead.useMutation({
@@ -61,8 +64,8 @@ export default function SystemShell({ children }: { children: React.ReactNode })
         <Link href="/" className="system-brand focus-ring">
           <div className="brand-sigil"><Swords size={18} /></div>
           <div>
-            <strong>ASCENSION</strong>
-            <span>SYSTEM // v.07</span>
+            <strong>O SISTEMA</strong>
+            <span>v.07</span>
           </div>
         </Link>
         <div className="sidebar-rank">
@@ -85,6 +88,15 @@ export default function SystemShell({ children }: { children: React.ReactNode })
         <div className="sidebar-status">
           <div className="status-dot" />
           <div><span>SISTEMA</span><strong>ONLINE</strong></div>
+          <button
+            className="icon-btn ml-auto"
+            onClick={() => logout()}
+            disabled={loggingOut}
+            aria-label="Sair"
+            title="Sair"
+          >
+            <LogOut size={17} />
+          </button>
         </div>
       </aside>
 
@@ -129,9 +141,10 @@ export default function SystemShell({ children }: { children: React.ReactNode })
           <>
             <motion.button className="mobile-overlay lg:hidden" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
             <motion.aside className="mobile-drawer lg:hidden" initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ duration: .24, ease: [0.23, 1, 0.32, 1] }}>
-              <div className="drawer-head"><Link href="/" className="system-brand" onClick={() => setMobileOpen(false)}><div className="brand-sigil"><Swords size={18} /></div><div><strong>ASCENSION</strong><span>SYSTEM // MOBILE</span></div></Link><button className="icon-btn" onClick={() => setMobileOpen(false)}><X size={19} /></button></div>
+              <div className="drawer-head"><Link href="/" className="system-brand" onClick={() => setMobileOpen(false)}><div className="brand-sigil"><Swords size={18} /></div><div><strong>O SISTEMA</strong><span>MOBILE</span></div></Link><button className="icon-btn" onClick={() => setMobileOpen(false)}><X size={19} /></button></div>
               <nav className="system-nav">
                 {navItems.map(item => <Link key={item.path} href={item.path} onClick={() => setMobileOpen(false)} className={`nav-item ${location === item.path ? "active" : ""}`}><item.icon size={18} /><span>{item.label}</span><ChevronRight size={14} /></Link>)}
+                <button className="nav-item" onClick={() => { setMobileOpen(false); logout(); }} disabled={loggingOut}><LogOut size={18} /><span>Sair</span></button>
               </nav>
             </motion.aside>
           </>

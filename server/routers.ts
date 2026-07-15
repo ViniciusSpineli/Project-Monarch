@@ -1,4 +1,6 @@
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, ONE_YEAR_MS, OWNER_OPEN_ID, UNAUTHED_ERR_MSG } from "@shared/const";
+import { TRPCError } from "@trpc/server";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import {
   completeFocusSession,
@@ -13,10 +15,20 @@ import {
   listMissions,
   markNotificationsRead,
   updateMission,
+  upsertUser,
 } from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { ENV } from "./_core/env";
+import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+
+function passwordMatches(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  // timingSafeEqual throws on length mismatch, so guard first.
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export const missionInput = z.object({
   title: z.string().trim().min(3).max(160),
@@ -34,6 +46,37 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+    login: publicProcedure
+      .input(z.object({ password: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        if (!ENV.appPassword) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "APP_PASSWORD não está configurado no arquivo .env.",
+          });
+        }
+        if (!passwordMatches(input.password, ENV.appPassword)) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+        }
+
+        const token = await sdk.createSessionToken(OWNER_OPEN_ID, {
+          name: ENV.ownerName,
+          expiresInMs: ONE_YEAR_MS,
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+
+        await upsertUser({
+          openId: OWNER_OPEN_ID,
+          name: ENV.ownerName,
+          email: ENV.ownerEmail,
+          loginMethod: "local",
+          role: "admin",
+          lastSignedIn: new Date(),
+        });
+
+        return { success: true } as const;
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });

@@ -1,5 +1,9 @@
+import Database from "better-sqlite3";
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { existsSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import {
   achievements,
   activities,
@@ -29,16 +33,32 @@ import {
   skillXpRequired,
   xpRequiredForLevel,
 } from "../shared/progression";
-import { ENV } from "./_core/env";
+import { OWNER_OPEN_ID } from "@shared/const";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
+// Local SQLite file. Zero-config: created on first boot, no external DB server.
+// Override the location with DATABASE_URL if you want (plain file path).
+const DB_PATH = resolve(process.env.DATABASE_URL || "data/ascension.db");
+const MIGRATIONS_DIR = resolve(process.cwd(), "drizzle/migrations");
+
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (!_db) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const dir = dirname(DB_PATH);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+      const sqlite = new Database(DB_PATH);
+      sqlite.pragma("journal_mode = WAL");
+      sqlite.pragma("foreign_keys = ON");
+      _db = drizzle(sqlite);
+
+      // Auto-create/upgrade the schema on boot so the app just works.
+      if (existsSync(MIGRATIONS_DIR)) {
+        migrate(_db, { migrationsFolder: MIGRATIONS_DIR });
+      }
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.warn("[Database] Failed to open SQLite:", error);
       _db = null;
     }
   }
@@ -59,9 +79,9 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
   values.lastSignedIn = user.lastSignedIn ?? new Date();
   updateSet.lastSignedIn = values.lastSignedIn;
-  values.role = user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user");
+  values.role = user.role ?? (user.openId === OWNER_OPEN_ID ? "admin" : "user");
   updateSet.role = values.role;
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -70,26 +90,21 @@ export async function getUserByOpenId(openId: string) {
   return (await db.select().from(users).where(eq(users.openId, openId)).limit(1))[0];
 }
 
+// Atributos base: as 6 categorias existem para o app renderizar, mas começam no piso (valor 1, sem progresso).
 const attributeSeeds = [
-  { key: "strength", label: "Força", value: 12, progress: 64, color: "#22d3ee", icon: "Dumbbell" },
-  { key: "intelligence", label: "Inteligência", value: 16, progress: 78, color: "#818cf8", icon: "BrainCircuit" },
-  { key: "discipline", label: "Disciplina", value: 18, progress: 86, color: "#a78bfa", icon: "ShieldCheck" },
-  { key: "vitality", label: "Vitalidade", value: 14, progress: 69, color: "#34d399", icon: "HeartPulse" },
-  { key: "agility", label: "Agilidade", value: 11, progress: 52, color: "#f59e0b", icon: "Gauge" },
-  { key: "charisma", label: "Carisma", value: 9, progress: 41, color: "#f472b6", icon: "Sparkles" },
+  { key: "strength", label: "Força", value: 1, progress: 0, color: "#22d3ee", icon: "Dumbbell" },
+  { key: "intelligence", label: "Inteligência", value: 1, progress: 0, color: "#818cf8", icon: "BrainCircuit" },
+  { key: "discipline", label: "Disciplina", value: 1, progress: 0, color: "#a78bfa", icon: "ShieldCheck" },
+  { key: "vitality", label: "Vitalidade", value: 1, progress: 0, color: "#34d399", icon: "HeartPulse" },
+  { key: "agility", label: "Agilidade", value: 1, progress: 0, color: "#f59e0b", icon: "Gauge" },
+  { key: "charisma", label: "Carisma", value: 1, progress: 0, color: "#f472b6", icon: "Sparkles" },
 ];
 
-const skillSeeds = [
-  { slug: "programming", name: "Programação", level: 8, xp: 340, totalMinutes: 2860, rank: "C", icon: "Code2" },
-  { slug: "training", name: "Treino", level: 7, xp: 260, totalMinutes: 2140, rank: "C", icon: "Dumbbell" },
-  { slug: "reading", name: "Leitura", level: 6, xp: 185, totalMinutes: 1680, rank: "D", icon: "BookOpen" },
-  { slug: "meditation", name: "Meditação", level: 4, xp: 94, totalMinutes: 620, rank: "D", icon: "Orbit" },
-];
-
+// Conquistas nascem travadas (progress 0, unlockedAt null): são metas a desbloquear, não histórico.
 const achievementSeeds = [
-  { code: "first-mission", title: "Primeiro Chamado", description: "Conclua sua primeira missão.", rarity: "common" as const, icon: "Flag", progress: 1, target: 1, unlockedAt: new Date(Date.now() - 6 * 86400000) },
-  { code: "level-five", title: "Despertar", description: "Alcance o nível 5.", rarity: "rare" as const, icon: "Zap", progress: 1, target: 1, unlockedAt: new Date(Date.now() - 3 * 86400000) },
-  { code: "seven-streak", title: "Ritmo Implacável", description: "Mantenha uma sequência de 7 dias.", rarity: "epic" as const, icon: "Flame", progress: 6, target: 7, unlockedAt: null },
+  { code: "first-mission", title: "Primeiro Chamado", description: "Conclua sua primeira missão.", rarity: "common" as const, icon: "Flag", progress: 0, target: 1, unlockedAt: null },
+  { code: "level-five", title: "Despertar", description: "Alcance o nível 5.", rarity: "rare" as const, icon: "Zap", progress: 0, target: 1, unlockedAt: null },
+  { code: "seven-streak", title: "Ritmo Implacável", description: "Mantenha uma sequência de 7 dias.", rarity: "epic" as const, icon: "Flame", progress: 0, target: 7, unlockedAt: null },
   { code: "boss-week", title: "Algoz do Caos", description: "Derrote um Boss Semanal.", rarity: "epic" as const, icon: "Swords", progress: 0, target: 1, unlockedAt: null },
 ];
 
@@ -104,42 +119,27 @@ export async function ensureSeedData() {
   if (!db) throw new Error("Banco de dados indisponível");
 
   if (!(await db.select({ id: character.id }).from(character).limit(1)).length) {
-    await db.insert(character).values({ id: 1, lastActiveDate: daysAgoDate(1) });
+    // Caçador começa do zero: nível 1, sem XP e sem sequência. Preenchido conforme o uso real.
+    await db.insert(character).values({
+      id: 1,
+      name: "Caçador",
+      level: 1,
+      currentXp: 0,
+      totalXp: 0,
+      title: "Caçador Desperto",
+      rank: "E",
+      streak: 0,
+      longestStreak: 0,
+      lastActiveDate: getLocalDateKey(),
+    });
   }
   if (!(await db.select({ id: attributes.id }).from(attributes).limit(1)).length) {
     await db.insert(attributes).values(attributeSeeds);
-    await db.insert(attributeHistory).values(attributeSeeds.map((item, index) => ({
-      attributeKey: item.key,
-      delta: Math.max(1, Math.floor(item.value / 3)),
-      reason: index % 2 ? "Missões de evolução" : "Recompensa de nível",
-      createdAt: new Date(Date.now() - (index + 2) * 86400000),
-    })));
-  }
-  if (!(await db.select({ id: skills.id }).from(skills).limit(1)).length) {
-    await db.insert(skills).values(skillSeeds.map(item => ({ ...item, lastEvolvedAt: new Date(Date.now() - 86400000) })));
   }
   if (!(await db.select({ id: achievements.id }).from(achievements).limit(1)).length) {
     await db.insert(achievements).values(achievementSeeds);
   }
-  if (!(await db.select({ id: dailyActivity.id }).from(dailyActivity).limit(1)).length) {
-    const pattern = [45, 80, 0, 120, 65, 190, 110, 90, 0, 75, 140, 210, 60, 180, 95, 135, 240, 70, 155, 205, 0, 185, 115, 260, 150, 90, 230, 175];
-    await db.insert(dailyActivity).values(pattern.map((xp, index) => ({
-      date: daysAgoDate(pattern.length - 1 - index),
-      xp,
-      missions: xp === 0 ? 0 : Math.max(1, Math.round(xp / 55)),
-      focusMinutes: xp === 0 ? 0 : 15 + (index % 4) * 10,
-      studyMinutes: xp === 0 ? 0 : 20 + (index % 5) * 15,
-      workouts: xp > 150 ? 1 : 0,
-      cardioMinutes: index % 4 === 0 ? 25 : 0,
-    })));
-  }
-  if (!(await db.select({ id: activities.id }).from(activities).limit(1)).length) {
-    await db.insert(activities).values([
-      { type: "level", title: "Nível 7 alcançado", description: "O Sistema reconheceu sua constância.", xp: 0, createdAt: new Date(Date.now() - 2 * 86400000) },
-      { type: "achievement", title: "Conquista desbloqueada: Despertar", description: "Você superou o primeiro limiar.", xp: 0, createdAt: new Date(Date.now() - 3 * 86400000) },
-      { type: "skill", title: "Programação evoluiu para o nível 8", description: "Sua habilidade técnica se fortaleceu.", xp: 80, createdAt: new Date(Date.now() - 86400000) },
-    ]);
-  }
+  // Skills, histórico de atividade (heatmap) e timeline começam vazios — vão se preenchendo com o uso.
   await ensureDailySystemMission();
   await ensureWeeklyBoss();
   await touchStreak();
@@ -167,7 +167,7 @@ export async function ensureDailySystemMission() {
     dueDate: today,
     isSystem: true,
     durationMinutes: 30,
-  }).$returningId();
+  }).returning({ id: missions.id });
   const created = (await db.select().from(missions).where(eq(missions.id, result[0].id)).limit(1))[0];
   await db.insert(notifications).values({ type: "mission", title: "NOVA MISSÃO DO SISTEMA", message: created.title });
   return created;
@@ -184,12 +184,12 @@ export async function ensureWeeklyBoss() {
     description: "Rompa o ciclo de adiamento completando sete missões nesta semana.",
     metric: "missions",
     target: 7,
-    current: 3,
+    current: 0,
     unit: "missões",
     xpReward: 500,
     weekKey,
     achievementCode: "boss-week",
-  }).$returningId();
+  }).returning({ id: bosses.id });
   return (await db.select().from(bosses).where(eq(bosses.id, result[0].id)).limit(1))[0];
 }
 
@@ -307,7 +307,7 @@ export type MissionInput = {
 export async function createMission(input: MissionInput) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível");
-  const result = await db.insert(missions).values({ ...input, description: input.description ?? null, skillSlug: input.skillSlug ?? null }).$returningId();
+  const result = await db.insert(missions).values({ ...input, description: input.description ?? null, skillSlug: input.skillSlug ?? null }).returning({ id: missions.id });
   await db.insert(notifications).values({ type: "mission", title: "NOVA MISSÃO", message: input.title });
   return (await db.select().from(missions).where(eq(missions.id, result[0].id)).limit(1))[0];
 }
@@ -348,10 +348,10 @@ export async function completeMission(id: number) {
   await db.update(missions).set({ status: "completed", completedAt: new Date() }).where(eq(missions.id, id));
   const reward = await grantXp(mission.xpReward, `Missão concluída: ${mission.title}`, mission.skillSlug, mission.durationMinutes);
   for (const key of categoryToAttribute[mission.category] ?? ["discipline"]) {
-    await db.update(attributes).set({ progress: sql`LEAST(99, ${attributes.progress} + 3)` }).where(eq(attributes.key, key));
+    await db.update(attributes).set({ progress: sql`MIN(99, ${attributes.progress} + 3)` }).where(eq(attributes.key, key));
   }
   const today = getLocalDateKey();
-  await db.insert(dailyActivity).values({ date: today, xp: mission.xpReward, missions: 1, studyMinutes: mission.category === "Inteligência" ? mission.durationMinutes : 0, workouts: mission.category === "Força" ? 1 : 0, cardioMinutes: mission.category === "Vitalidade" ? mission.durationMinutes : 0 }).onDuplicateKeyUpdate({ set: { xp: sql`${dailyActivity.xp} + ${mission.xpReward}`, missions: sql`${dailyActivity.missions} + 1`, studyMinutes: sql`${dailyActivity.studyMinutes} + ${mission.category === "Inteligência" ? mission.durationMinutes : 0}`, workouts: sql`${dailyActivity.workouts} + ${mission.category === "Força" ? 1 : 0}`, cardioMinutes: sql`${dailyActivity.cardioMinutes} + ${mission.category === "Vitalidade" ? mission.durationMinutes : 0}` } });
+  await db.insert(dailyActivity).values({ date: today, xp: mission.xpReward, missions: 1, studyMinutes: mission.category === "Inteligência" ? mission.durationMinutes : 0, workouts: mission.category === "Força" ? 1 : 0, cardioMinutes: mission.category === "Vitalidade" ? mission.durationMinutes : 0 }).onConflictDoUpdate({ target: dailyActivity.date, set: { xp: sql`${dailyActivity.xp} + ${mission.xpReward}`, missions: sql`${dailyActivity.missions} + 1`, studyMinutes: sql`${dailyActivity.studyMinutes} + ${mission.category === "Inteligência" ? mission.durationMinutes : 0}`, workouts: sql`${dailyActivity.workouts} + ${mission.category === "Força" ? 1 : 0}`, cardioMinutes: sql`${dailyActivity.cardioMinutes} + ${mission.category === "Vitalidade" ? mission.durationMinutes : 0}` } });
   await db.insert(activities).values({ type: "mission", title: mission.title, description: "Missão concluída. O Sistema registrou sua evolução.", xp: mission.xpReward });
 
   const boss = (await db.select().from(bosses).where(and(eq(bosses.weekKey, getWeekKey()), eq(bosses.status, "active"))).limit(1))[0];
@@ -378,7 +378,7 @@ export async function completeFocusSession(skillSlug: string, minutes: number) {
   await db.insert(focusSessions).values({ skillSlug, plannedMinutes: minutes, actualMinutes: minutes, xpReward });
   const reward = await grantXp(xpReward, `Sessão de foco de ${minutes} minutos`, skillSlug, minutes);
   const today = getLocalDateKey();
-  await db.insert(dailyActivity).values({ date: today, xp: xpReward, focusMinutes: minutes, studyMinutes: minutes }).onDuplicateKeyUpdate({ set: { xp: sql`${dailyActivity.xp} + ${xpReward}`, focusMinutes: sql`${dailyActivity.focusMinutes} + ${minutes}`, studyMinutes: sql`${dailyActivity.studyMinutes} + ${minutes}` } });
+  await db.insert(dailyActivity).values({ date: today, xp: xpReward, focusMinutes: minutes, studyMinutes: minutes }).onConflictDoUpdate({ target: dailyActivity.date, set: { xp: sql`${dailyActivity.xp} + ${xpReward}`, focusMinutes: sql`${dailyActivity.focusMinutes} + ${minutes}`, studyMinutes: sql`${dailyActivity.studyMinutes} + ${minutes}` } });
   await db.insert(activities).values({ type: "focus", title: `Foco concluído: ${minutes} min`, description: "Concentração convertida em poder.", xp: xpReward });
   return { xpReward, ...reward };
 }
@@ -414,7 +414,7 @@ export async function getEvolution() {
 export async function createJournalEntry(input: { date: string; title: string; content: string; mood: "focused" | "proud" | "neutral" | "tired" | "challenged" }) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível");
-  const result = await db.insert(journalEntries).values(input).$returningId();
+  const result = await db.insert(journalEntries).values(input).returning({ id: journalEntries.id });
   await db.insert(activities).values({ type: "journal", title: `Registro: ${input.title}`, description: "Reflexão adicionada ao Diário de Evolução." });
   return (await db.select().from(journalEntries).where(eq(journalEntries.id, result[0].id)).limit(1))[0];
 }

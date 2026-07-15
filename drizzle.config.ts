@@ -1,15 +1,14 @@
 import { defineConfig } from "drizzle-kit";
+import { resolve } from "node:path";
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error("DATABASE_URL is required to run drizzle commands");
-}
+// Local SQLite file (same default as server/db.ts).
+const dbPath = resolve(process.env.DATABASE_URL || "data/ascension.db");
 
 export default defineConfig({
   schema: "./drizzle/schema.ts",
-  out: "./drizzle",
-  dialect: "mysql",
+  out: "./drizzle/migrations",
+  dialect: "sqlite",
   dbCredentials: {
-    url: connectionString,
+    url: dbPath,
   },
 });

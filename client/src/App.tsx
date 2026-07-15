@@ -1,12 +1,15 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import SystemShell from "@/components/SystemShell";
+import { useAuth } from "@/hooks/useAuth";
 import Dashboard from "@/pages/Dashboard";
 import Evolution from "@/pages/Evolution";
 import FocusMode from "@/pages/FocusMode";
+import Login from "@/pages/Login";
 import Missions from "@/pages/Missions";
 import NotFound from "@/pages/NotFound";
 import Statistics from "@/pages/Statistics";
+import { Loader2 } from "lucide-react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { Route, Switch } from "wouter";
@@ -26,12 +29,27 @@ function Router() {
   );
 }
 
+function AuthGate() {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="system-root min-h-screen flex items-center justify-center text-foreground">
+        <div className="system-grid" aria-hidden="true" />
+        <Loader2 className="relative z-10 animate-spin text-primary" size={28} />
+      </div>
+    );
+  }
+
+  return isAuthenticated ? <Router /> : <Login />;
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
-          <Router />
+          <AuthGate />
           <Toaster richColors position="top-right" />
         </TooltipProvider>
       </ThemeProvider>
