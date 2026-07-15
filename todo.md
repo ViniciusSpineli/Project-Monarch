@@ -1,0 +1,34 @@
+# Project TODO
+
+- [x] Remover toda dependência de login ou cadastro da experiência do usuário
+- [x] Definir modelo de dados para personagem, atributos, skills, missões, histórico, conquistas, títulos, bosses, sessões de foco, diário e notificações
+- [x] Implementar estado inicial persistente para uma única persona
+- [x] Implementar curva de XP, progressão de nível, ganhos de atributos e desbloqueio de títulos
+- [x] Implementar dashboard com avatar, nível, XP, barra animada, título, ranking e frase do Sistema
+- [x] Implementar resumo de missões do dia com conclusão instantânea e feedback visual
+- [x] Implementar painel de atributos RPG com barras, ícones e histórico de evolução
+- [x] Implementar painel de skills com nível, XP, última evolução, tempo investido e ranking
+- [x] Implementar calendário de consistência em formato heatmap e sequência ativa
+- [x] Implementar conquistas recentes e histórico de progressão no dashboard
+- [x] Implementar CRUD completo de missões: criar, editar, excluir, concluir, filtrar, pesquisar, agrupar, ordenar e duplicar
+- [x] Gerar automaticamente uma missão diária do Sistema ao abrir a aplicação
+- [x] Implementar overlay imersivo de LEVEL UP com escurecimento, partículas, explosão de XP, ganhos e novo título
+- [x] Implementar notificações animadas distintas para level up, skill, conquista, sequência, título e missão do Sistema
+- [x] Implementar Estatísticas com Chart.js para XP diário, semanal e mensal
+- [x] Implementar gráficos de atributos, skills, missões, sequências, horas estudadas, treinos e cardio
+- [x] Implementar mapa de calor de atividade na página de Estatísticas
+- [x] Implementar Modo Foco Pomodoro com cronômetro, seleção de skill e concessão automática de XP
+- [x] Implementar Bosses Semanais com progresso, recompensa de XP e conquista especial
+- [x] Implementar Timeline da Evolução com níveis, atributos, conquistas e recordes
+- [x] Implementar Diário de Evolução com criação e histórico de reflexões diárias
+- [x] Criar navegação responsiva desktop/mobile e linguagem consistente de Sistema RPG
+- [x] Aplicar identidade visual própria em preto, azul arcano e violeta, com glassmorphism, brilhos e microanimações
+- [x] Implementar estados de carregamento, vazios, erro e confirmações sem telas mortas
+- [x] Garantir acessibilidade básica, foco visível, contraste e redução opcional de movimento
+- [x] Escrever testes Vitest para regras de XP, nível, missões, foco e bosses
+- [x] Executar checagem TypeScript, testes e build de produção
+- [x] Validar visualmente dashboard e páginas principais em desktop e mobile
+- [x] Revisar todo.md e salvar checkpoint final do projeto
+- [x] Auditar em código e na interface os módulos completos do dashboard, animações e notificações
+- [x] Validar funcionalmente CRUD e organização de Missões, Pomodoro, Bosses, Timeline e Diário
+- [x] Confirmar gráficos, heatmaps, estados alternativos e acessibilidade antes da entrega
