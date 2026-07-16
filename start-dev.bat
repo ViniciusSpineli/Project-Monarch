@@ -21,7 +21,7 @@ if not exist "%ROOT_DIR%\node_modules" (
     )
 )
 
-echo [dev] Iniciando ASCENSION SYSTEM em modo de desenvolvimento...
+echo [dev] Iniciando O SISTEMA em modo de desenvolvimento...
 start "ASCENSION SYSTEM - Dev" cmd /k "cd /d ""%ROOT_DIR%"" && pnpm dev"
 
 endlocal

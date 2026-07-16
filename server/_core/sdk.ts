@@ -90,22 +90,6 @@ class SDKServer {
     }
   }
 
-  /** Owner user materialized from a session when no database is configured. */
-  private buildOwnerUser(payload: SessionPayload): AuthenticatedUser {
-    const now = new Date();
-    return {
-      id: -1,
-      openId: payload.openId,
-      name: payload.name || ENV.ownerName,
-      email: ENV.ownerEmail,
-      loginMethod: "local",
-      role: "admin",
-      createdAt: now,
-      updatedAt: now,
-      lastSignedIn: now,
-    };
-  }
-
   async authenticateRequest(req: Request): Promise<AuthenticatedUser> {
     // 1. Prefer the session cookie.
     const cookies = this.parseCookies(req.headers.cookie);
@@ -124,25 +108,14 @@ class SDKServer {
       throw ForbiddenError("Invalid session");
     }
 
-    const signedInAt = new Date();
-    // Sync the owner into the DB when one is configured; otherwise run DB-less
-    // with a synthetic owner so the app works before MySQL is set up.
-    let user = await db.getUserByOpenId(session.openId);
+    // The session maps to a real user row. If the user no longer exists, the
+    // session is stale — treat it as logged out.
+    const user = await db.getUserByOpenId(session.openId);
     if (!user) {
-      await db.upsertUser({
-        openId: session.openId,
-        name: session.name || ENV.ownerName,
-        email: ENV.ownerEmail,
-        loginMethod: "local",
-        role: "admin",
-        lastSignedIn: signedInAt,
-      });
-      user = await db.getUserByOpenId(session.openId);
-    } else {
-      await db.upsertUser({ openId: user.openId, lastSignedIn: signedInAt });
+      throw ForbiddenError("Invalid session");
     }
-
-    return user ?? this.buildOwnerUser(session);
+    await db.touchUserSignIn(user.id);
+    return user;
   }
 }
 

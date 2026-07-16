@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   Activity,
   BarChart3,
@@ -12,17 +13,21 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Moon,
   ScrollText,
   Shield,
   Sparkles,
+  Sun,
   Swords,
   Target,
   TimerReset,
+  UserCheck,
   X,
   Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Link, useLocation } from "wouter";
 
 const navItems = [
@@ -47,11 +52,25 @@ export default function SystemShell({ children }: { children: React.ReactNode })
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { logout, loggingOut } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [approvalsOpen, setApprovalsOpen] = useState(false);
+  const { user, logout, loggingOut } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const dashboard = trpc.dashboard.get.useQuery(undefined, { staleTime: 20_000, refetchOnWindowFocus: false });
   const utils = trpc.useUtils();
   const markRead = trpc.notifications.markAllRead.useMutation({
     onSuccess: () => utils.dashboard.get.invalidate(),
+  });
+  const isAdmin = user?.role === "admin";
+  const pendingUsers = trpc.admin.pendingUsers.useQuery(undefined, { enabled: isAdmin, refetchOnWindowFocus: false });
+  const pendingCount = pendingUsers.data?.length ?? 0;
+  const setUserStatus = trpc.admin.setUserStatus.useMutation({
+    onSuccess: updated => {
+      toast.success(updated?.status === "approved" ? `Acesso liberado para ${updated?.username}.` : "Cadastro negado.");
+      utils.admin.pendingUsers.invalidate();
+      utils.dashboard.get.invalidate();
+    },
+    onError: e => toast.error(e.message),
   });
   const hero = dashboard.data?.character;
   const notifications = dashboard.data?.notifications ?? [];
@@ -130,7 +149,31 @@ export default function SystemShell({ children }: { children: React.ReactNode })
                 )}
               </AnimatePresence>
             </div>
-            <div className="hero-mini"><div className="hero-mini-avatar">C</div><div className="hidden md:block"><span>NÍVEL {hero?.level ?? "—"}</span><strong>{hero?.title ?? "Sincronizando..."}</strong></div></div>
+            <div className="relative">
+              <button className="hero-mini profile-trigger" onClick={() => setProfileOpen(value => !value)} aria-label="Menu do operador">
+                <div className="hero-mini-avatar">{(user?.username?.[0] ?? "C").toUpperCase()}</div>
+                <div className="hidden md:block"><span>NÍVEL {hero?.level ?? "—"}</span><strong>Caçador {user?.username ?? "—"}</strong></div>
+                {isAdmin && pendingCount > 0 && <b className="notification-count">{pendingCount}</b>}
+              </button>
+              <AnimatePresence>
+                {profileOpen && (
+                  <motion.div className="profile-menu" initial={{ opacity: 0, y: -8, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: .97 }} transition={{ duration: .16 }}>
+                    {isAdmin && (
+                      <button className="profile-item" onClick={() => { setApprovalsOpen(true); setProfileOpen(false); }}>
+                        <UserCheck size={16} /><span>Aprovações pendentes</span>{pendingCount > 0 && <b>{pendingCount}</b>}
+                      </button>
+                    )}
+                    <button className="profile-item" onClick={() => toggleTheme?.()}>
+                      {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+                      <span>{theme === "dark" ? "Modo branco" : "Modo noturno"}</span>
+                    </button>
+                    <button className="profile-item danger" onClick={() => { setProfileOpen(false); logout(); }} disabled={loggingOut}>
+                      <LogOut size={16} /><span>Sair do SISTEMA</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </header>
         <main className="system-content">{children}</main>
@@ -157,6 +200,33 @@ export default function SystemShell({ children }: { children: React.ReactNode })
           return <Link key={item.path} href={item.path} className={active ? "active" : ""}><item.icon size={19} /><span>{item.label === "Estatísticas" ? "Stats" : item.label === "Modo Foco" ? "Foco" : item.label}</span></Link>;
         })}
       </nav>
+
+      <AnimatePresence>
+        {approvalsOpen && (
+          <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={e => e.target === e.currentTarget && setApprovalsOpen(false)}>
+            <motion.div className="approvals-modal" initial={{ opacity: 0, scale: .96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: .97, y: 8 }} transition={{ duration: .2 }}>
+              <div className="modal-head"><div><span>CONTROLE DE ACESSO</span><h2>Aprovações pendentes</h2></div><button type="button" onClick={() => setApprovalsOpen(false)}><X size={19} /></button></div>
+              <div className="approvals-list">
+                {pendingUsers.isLoading ? (
+                  <div className="empty-mini"><Activity size={20} /><span>Carregando cadastros...</span></div>
+                ) : pendingCount === 0 ? (
+                  <div className="empty-mini"><Check size={20} /><span>Nenhum cadastro pendente.</span></div>
+                ) : (
+                  (pendingUsers.data ?? []).map(candidate => candidate && (
+                    <div className="approval-item" key={candidate.id}>
+                      <div className="approval-info"><strong>{candidate.username}</strong>{candidate.name && candidate.name !== candidate.username && <span>{candidate.name}</span>}</div>
+                      <div className="approval-actions">
+                        <button className="approve" disabled={setUserStatus.isPending} onClick={() => setUserStatus.mutate({ userId: candidate.id, status: "approved" })}><Check size={15} /> Aprovar</button>
+                        <button className="reject" disabled={setUserStatus.isPending} onClick={() => setUserStatus.mutate({ userId: candidate.id, status: "rejected" })}><X size={15} /> Negar</button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

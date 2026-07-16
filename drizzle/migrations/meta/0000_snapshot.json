@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "13298649-6db9-44db-a7b2-fe45673ba362",
+  "id": "e90d2b75-f7d9-4d63-9914-558f362cb01d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "achievements": {
@@ -13,6 +13,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "code": {
           "name": "code",
@@ -76,9 +83,10 @@
         }
       },
       "indexes": {
-        "achievements_code_unique": {
-          "name": "achievements_code_unique",
+        "achievements_user_code_unique": {
+          "name": "achievements_user_code_unique",
           "columns": [
+            "userId",
             "code"
           ],
           "isUnique": true
@@ -98,6 +106,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "type": {
           "name": "type",
@@ -160,6 +175,13 @@
           "notNull": true,
           "autoincrement": true
         },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "attributeKey": {
           "name": "attributeKey",
           "type": "text",
@@ -205,6 +227,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "key": {
           "name": "key",
@@ -252,9 +281,10 @@
         }
       },
       "indexes": {
-        "attributes_key_unique": {
-          "name": "attributes_key_unique",
+        "attributes_user_key_unique": {
+          "name": "attributes_user_key_unique",
           "columns": [
+            "userId",
             "key"
           ],
           "isUnique": true
@@ -274,6 +304,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "title": {
           "name": "title",
@@ -377,8 +414,14 @@
           "type": "integer",
           "primaryKey": true,
           "notNull": true,
-          "autoincrement": false,
-          "default": 1
+          "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "name": {
           "name": "name",
@@ -394,7 +437,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 7
+          "default": 1
         },
         "currentXp": {
           "name": "currentXp",
@@ -402,7 +445,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 420
+          "default": 0
         },
         "totalXp": {
           "name": "totalXp",
@@ -410,7 +453,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 2140
+          "default": 0
         },
         "title": {
           "name": "title",
@@ -434,7 +477,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 6
+          "default": 0
         },
         "longestStreak": {
           "name": "longestStreak",
@@ -442,7 +485,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 11
+          "default": 0
         },
         "lastActiveDate": {
           "name": "lastActiveDate",
@@ -468,7 +511,15 @@
           "default": "(unixepoch())"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "character_userId_unique": {
+          "name": "character_userId_unique",
+          "columns": [
+            "userId"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -483,6 +534,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "date": {
           "name": "date",
@@ -541,9 +599,10 @@
         }
       },
       "indexes": {
-        "daily_activity_date_unique": {
-          "name": "daily_activity_date_unique",
+        "daily_activity_user_date_unique": {
+          "name": "daily_activity_user_date_unique",
           "columns": [
+            "userId",
             "date"
           ],
           "isUnique": true
@@ -563,6 +622,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "skillSlug": {
           "name": "skillSlug",
@@ -616,6 +682,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "date": {
           "name": "date",
@@ -678,6 +751,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "title": {
           "name": "title",
@@ -803,6 +883,13 @@
           "notNull": true,
           "autoincrement": true
         },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "type": {
           "name": "type",
           "type": "text",
@@ -856,6 +943,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "slug": {
           "name": "slug",
@@ -927,9 +1021,10 @@
         }
       },
       "indexes": {
-        "skills_slug_unique": {
-          "name": "skills_slug_unique",
+        "skills_user_slug_unique": {
+          "name": "skills_user_slug_unique",
           "columns": [
+            "userId",
             "slug"
           ],
           "isUnique": true
@@ -956,6 +1051,28 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "passwordHash": {
+          "name": "passwordHash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
         },
         "name": {
           "name": "name",
@@ -985,6 +1102,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'user'"
+        },
+        "approvedAt": {
+          "name": "approvedAt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "createdAt": {
           "name": "createdAt",
@@ -1016,6 +1140,13 @@
           "name": "users_openId_unique",
           "columns": [
             "openId"
+          ],
+          "isUnique": true
+        },
+        "users_username_unique": {
+          "name": "users_username_unique",
+          "columns": [
+            "username"
           ],
           "isUnique": true
         }

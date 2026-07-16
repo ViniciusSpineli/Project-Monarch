@@ -17,6 +17,12 @@ const requireUser = t.middleware(async opts => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
 
+  // Só usuários aprovados operam o app. Pendentes/negados nunca recebem sessão
+  // no login, mas mantemos a checagem como defesa em profundidade.
+  if (ctx.user.status !== "approved") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Conta aguardando liberação do administrador." });
+  }
+
   return next({
     ctx: {
       ...ctx,

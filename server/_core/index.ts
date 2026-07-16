@@ -4,6 +4,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
+import { getDb } from "../db";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
@@ -46,6 +47,9 @@ async function startServer() {
   } else {
     serveStatic(app);
   }
+
+  // Inicializa o banco no boot: aplica migrações e cria o admin (vinicius.spineli).
+  await getDb();
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);

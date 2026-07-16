@@ -1,5 +1,6 @@
 CREATE TABLE `achievements` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`code` text NOT NULL,
 	`title` text NOT NULL,
 	`description` text,
@@ -10,9 +11,10 @@ CREATE TABLE `achievements` (
 	`target` integer DEFAULT 1 NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `achievements_code_unique` ON `achievements` (`code`);--> statement-breakpoint
+CREATE UNIQUE INDEX `achievements_user_code_unique` ON `achievements` (`userId`,`code`);--> statement-breakpoint
 CREATE TABLE `activities` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`type` text NOT NULL,
 	`title` text NOT NULL,
 	`description` text,
@@ -23,6 +25,7 @@ CREATE TABLE `activities` (
 --> statement-breakpoint
 CREATE TABLE `attribute_history` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`attributeKey` text NOT NULL,
 	`delta` integer NOT NULL,
 	`reason` text NOT NULL,
@@ -31,6 +34,7 @@ CREATE TABLE `attribute_history` (
 --> statement-breakpoint
 CREATE TABLE `attributes` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`key` text NOT NULL,
 	`label` text NOT NULL,
 	`value` integer DEFAULT 1 NOT NULL,
@@ -39,9 +43,10 @@ CREATE TABLE `attributes` (
 	`icon` text NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `attributes_key_unique` ON `attributes` (`key`);--> statement-breakpoint
+CREATE UNIQUE INDEX `attributes_user_key_unique` ON `attributes` (`userId`,`key`);--> statement-breakpoint
 CREATE TABLE `bosses` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`title` text NOT NULL,
 	`description` text,
 	`metric` text NOT NULL,
@@ -57,22 +62,25 @@ CREATE TABLE `bosses` (
 );
 --> statement-breakpoint
 CREATE TABLE `character` (
-	`id` integer PRIMARY KEY DEFAULT 1 NOT NULL,
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`name` text DEFAULT 'Caçador' NOT NULL,
-	`level` integer DEFAULT 7 NOT NULL,
-	`currentXp` integer DEFAULT 420 NOT NULL,
-	`totalXp` integer DEFAULT 2140 NOT NULL,
+	`level` integer DEFAULT 1 NOT NULL,
+	`currentXp` integer DEFAULT 0 NOT NULL,
+	`totalXp` integer DEFAULT 0 NOT NULL,
 	`title` text DEFAULT 'Caçador Desperto' NOT NULL,
 	`rank` text DEFAULT 'E' NOT NULL,
-	`streak` integer DEFAULT 6 NOT NULL,
-	`longestStreak` integer DEFAULT 11 NOT NULL,
+	`streak` integer DEFAULT 0 NOT NULL,
+	`longestStreak` integer DEFAULT 0 NOT NULL,
 	`lastActiveDate` text,
 	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,
 	`updatedAt` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `character_userId_unique` ON `character` (`userId`);--> statement-breakpoint
 CREATE TABLE `daily_activity` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`date` text NOT NULL,
 	`xp` integer DEFAULT 0 NOT NULL,
 	`missions` integer DEFAULT 0 NOT NULL,
@@ -82,9 +90,10 @@ CREATE TABLE `daily_activity` (
 	`cardioMinutes` integer DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `daily_activity_date_unique` ON `daily_activity` (`date`);--> statement-breakpoint
+CREATE UNIQUE INDEX `daily_activity_user_date_unique` ON `daily_activity` (`userId`,`date`);--> statement-breakpoint
 CREATE TABLE `focus_sessions` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`skillSlug` text NOT NULL,
 	`plannedMinutes` integer NOT NULL,
 	`actualMinutes` integer NOT NULL,
@@ -94,6 +103,7 @@ CREATE TABLE `focus_sessions` (
 --> statement-breakpoint
 CREATE TABLE `journal_entries` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`date` text NOT NULL,
 	`title` text NOT NULL,
 	`content` text NOT NULL,
@@ -104,6 +114,7 @@ CREATE TABLE `journal_entries` (
 --> statement-breakpoint
 CREATE TABLE `missions` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`title` text NOT NULL,
 	`description` text,
 	`type` text DEFAULT 'daily' NOT NULL,
@@ -122,6 +133,7 @@ CREATE TABLE `missions` (
 --> statement-breakpoint
 CREATE TABLE `notifications` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`type` text NOT NULL,
 	`title` text NOT NULL,
 	`message` text NOT NULL,
@@ -131,6 +143,7 @@ CREATE TABLE `notifications` (
 --> statement-breakpoint
 CREATE TABLE `skills` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`userId` integer NOT NULL,
 	`slug` text NOT NULL,
 	`name` text NOT NULL,
 	`level` integer DEFAULT 1 NOT NULL,
@@ -142,17 +155,22 @@ CREATE TABLE `skills` (
 	`createdAt` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `skills_slug_unique` ON `skills` (`slug`);--> statement-breakpoint
+CREATE UNIQUE INDEX `skills_user_slug_unique` ON `skills` (`userId`,`slug`);--> statement-breakpoint
 CREATE TABLE `users` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`openId` text NOT NULL,
+	`username` text NOT NULL,
+	`passwordHash` text NOT NULL,
+	`status` text DEFAULT 'pending' NOT NULL,
 	`name` text,
 	`email` text,
 	`loginMethod` text,
 	`role` text DEFAULT 'user' NOT NULL,
+	`approvedAt` integer,
 	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,
 	`updatedAt` integer DEFAULT (unixepoch()) NOT NULL,
 	`lastSignedIn` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `users_openId_unique` ON `users` (`openId`);
+CREATE UNIQUE INDEX `users_openId_unique` ON `users` (`openId`);--> statement-breakpoint
+CREATE UNIQUE INDEX `users_username_unique` ON `users` (`username`);
