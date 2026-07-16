@@ -2,6 +2,7 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
+  backfillDayMissions,
   completeFocusSession,
   completeMission,
   createJournalEntry,
@@ -18,6 +19,7 @@ import {
   markNotificationsRead,
   notifyAdmins,
   setUserStatus,
+  uncompleteMission,
   updateMission,
 } from "./db";
 import type { User } from "../drizzle/schema";
@@ -131,6 +133,12 @@ export const appRouter = router({
     complete: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ ctx, input }) => completeMission(ctx.user.id, input.id)),
+    backfillDay: protectedProcedure
+      .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+      .mutation(({ ctx, input }) => backfillDayMissions(ctx.user.id, input.date)),
+    uncomplete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ ctx, input }) => uncompleteMission(ctx.user.id, input.id)),
   }),
   focus: router({
     complete: protectedProcedure

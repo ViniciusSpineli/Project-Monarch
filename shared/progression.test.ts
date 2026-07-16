@@ -37,10 +37,14 @@ describe("progressão do personagem", () => {
 
   it("aumenta progressivamente o custo e desbloqueia títulos e ranks", () => {
     expect(xpRequiredForLevel(10)).toBeGreaterThan(xpRequiredForLevel(2));
-    expect(titleForLevel(5)).toBe("Caçador Desperto");
-    expect(titleForLevel(80)).toBe("Lenda Rank S");
+    expect(titleForLevel(5)).toBe("Humano Comum");
+    expect(titleForLevel(80)).toBe("Caçador Rank S");
+    expect(rankForLevel(1)).toBe("Humano");
+    expect(rankForLevel(8)).toBe("E");
     expect(rankForLevel(24)).toBe("D");
     expect(rankForLevel(80)).toBe("S");
+    expect(rankForLevel(90)).toBe("Nacional");
+    expect(rankForLevel(100)).toBe("Monarca");
   });
 });
 

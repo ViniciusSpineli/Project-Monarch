@@ -26,25 +26,30 @@ export function xpRequiredForLevel(level: number) {
   return Math.round(100 * Math.pow(1.18, Math.max(0, level - 1)));
 }
 
+// Hierarquia oficial do Sistema:
+// Humano Comum → Rank E → D → C → B → A → S → Rank Nacional → Monarca
 export function titleForLevel(level: number) {
-  if (level >= 100) return "Monarca da Ascensão";
-  if (level >= 80) return "Lenda Rank S";
+  if (level >= 100) return "Monarca";
+  if (level >= 90) return "Caçador Rank Nacional";
+  if (level >= 80) return "Caçador Rank S";
   if (level >= 60) return "Caçador Rank A";
   if (level >= 40) return "Caçador Rank B";
   if (level >= 25) return "Caçador Rank C";
   if (level >= 15) return "Caçador Rank D";
   if (level >= 8) return "Caçador Rank E";
-  if (level >= 5) return "Caçador Desperto";
-  return "Iniciante do Sistema";
+  return "Humano Comum";
 }
 
 export function rankForLevel(level: number) {
+  if (level >= 100) return "Monarca";
+  if (level >= 90) return "Nacional";
   if (level >= 80) return "S";
   if (level >= 60) return "A";
   if (level >= 40) return "B";
   if (level >= 25) return "C";
   if (level >= 15) return "D";
-  return "E";
+  if (level >= 8) return "E";
+  return "Humano";
 }
 
 export function applyXp(state: ProgressionState, earnedXp: number): ProgressionResult {

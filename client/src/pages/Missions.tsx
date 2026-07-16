@@ -1,6 +1,6 @@
 import { ErrorSector, LoadingSector, PageHeader, SystemCard } from "@/components/SystemShell";
 import { trpc } from "@/lib/trpc";
-import { Check, ChevronDown, Clock3, Copy, Edit3, Filter, Plus, Search, ShieldAlert, Sparkles, Target, Trash2, X, Zap } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Clock3, Copy, Edit3, Filter, Plus, Search, ShieldAlert, Sparkles, Target, Trash2, X, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -18,6 +18,13 @@ type MissionForm = {
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
+// Data local (evita o shift de fuso do toISOString) com deslocamento de dias.
+const localDateKey = (offsetDays = 0) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 const emptyMission: MissionForm = { title: "", description: "", type: "daily", category: "Disciplina", xpReward: 50, durationMinutes: 30, skillSlug: null, priority: "medium", dueDate: today() };
 const typeLabels: Record<string, string> = { daily: "Diária", weekly: "Semanal", monthly: "Mensal", unique: "Única", epic: "Épica", challenge: "Desafio", secret: "Secreta" };
 
@@ -30,27 +37,39 @@ export default function Missions() {
   const [group, setGroup] = useState<"none" | "type" | "category" | "status">("none");
   const [sort, setSort] = useState<"newest" | "xp" | "priority" | "due">("newest");
   const [modal, setModal] = useState<{ mode: "create" | "edit"; id?: number; data: MissionForm } | null>(null);
+  // Filtro de dia do quadro: abre já no dia atual; vazio = todas as datas.
+  // Também é a data usada para gerar rotina retroativa.
+  const [dayFilter, setDayFilter] = useState(() => localDateKey());
 
   const invalidate = () => { utils.missions.list.invalidate(); utils.dashboard.get.invalidate(); };
+  const backfill = trpc.missions.backfillDay.useMutation({
+    onSuccess: rows => {
+      toast.success(`Missões de ${new Date(`${dayFilter}T12:00:00`).toLocaleDateString("pt-BR")} prontas (${rows.length}). Marque as que você concluiu!`);
+      invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
   const create = trpc.missions.create.useMutation({ onSuccess: () => { toast.success("Nova missão registrada."); setModal(null); invalidate(); }, onError: e => toast.error(e.message) });
   const update = trpc.missions.update.useMutation({ onSuccess: () => { toast.success("Missão recalibrada."); setModal(null); invalidate(); }, onError: e => toast.error(e.message) });
   const remove = trpc.missions.delete.useMutation({ onSuccess: () => { toast.success("Missão removida do registro."); invalidate(); }, onError: e => toast.error(e.message) });
   const duplicate = trpc.missions.duplicate.useMutation({ onSuccess: () => { toast.success("Missão duplicada."); invalidate(); }, onError: e => toast.error(e.message) });
   const complete = trpc.missions.complete.useMutation({ onSuccess: result => { toast.success(`Missão concluída: +${result.mission.xpReward} XP`); invalidate(); }, onError: e => toast.error(e.message) });
+  const uncomplete = trpc.missions.uncomplete.useMutation({ onSuccess: () => { toast("Conclusão desfeita — XP e progresso revertidos."); invalidate(); }, onError: e => toast.error(e.message) });
 
   const missions = useMemo(() => {
     const source = [...(query.data ?? [])];
     const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
     return source.filter(item => {
       const matchesSearch = `${item.title} ${item.description ?? ""} ${item.category}`.toLowerCase().includes(search.toLowerCase());
-      return matchesSearch && (status === "all" || item.status === status) && (type === "all" || item.type === type);
+      const matchesDay = !dayFilter || item.dueDate === dayFilter;
+      return matchesSearch && matchesDay && (status === "all" || item.status === status) && (type === "all" || item.type === type);
     }).sort((a, b) => {
       if (sort === "xp") return b.xpReward - a.xpReward;
       if (sort === "priority") return priorityOrder[b.priority] - priorityOrder[a.priority];
       if (sort === "due") return a.dueDate.localeCompare(b.dueDate);
       return b.id - a.id;
     });
-  }, [query.data, search, status, type, sort]);
+  }, [query.data, search, status, type, sort, dayFilter]);
 
   const groups = useMemo(() => {
     if (group === "none") return [["Todas as missões", missions]] as const;
@@ -88,6 +107,23 @@ export default function Missions() {
           <label className="select-field"><select value={group} onChange={e => setGroup(e.target.value as typeof group)}><option value="none">Sem agrupamento</option><option value="type">Agrupar por tipo</option><option value="category">Agrupar por categoria</option><option value="status">Agrupar por status</option></select><ChevronDown size={13} /></label>
           <label className="select-field"><select value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="newest">Mais recentes</option><option value="xp">Maior XP</option><option value="priority">Prioridade</option><option value="due">Prazo</option></select><ChevronDown size={13} /></label>
         </div>
+        <div className="backfill-row">
+          <CalendarDays size={15} />
+          <span>
+            {dayFilter
+              ? <>Mostrando as missões de <b>{new Date(`${dayFilter}T12:00:00`).toLocaleDateString("pt-BR")}</b>. Marque o que concluiu — o XP conta nesse dia.</>
+              : <>Escolha uma data para ver e preencher as missões daquele dia (o XP conta na data escolhida). Sem data, o quadro mostra todas.</>}
+          </span>
+          <input type="date" value={dayFilter} max={localDateKey()} onChange={e => setDayFilter(e.target.value)} aria-label="Filtrar missões por data" />
+          {dayFilter && (
+            <button type="button" className="system-button secondary" onClick={() => setDayFilter("")}>
+              Todas as datas
+            </button>
+          )}
+          <button type="button" className="system-button" disabled={backfill.isPending || !dayFilter} onClick={() => backfill.mutate({ date: dayFilter })}>
+            {backfill.isPending ? "Gerando..." : "Gerar missões do dia"}
+          </button>
+        </div>
       </SystemCard>
 
       <div className="mission-groups">
@@ -95,7 +131,13 @@ export default function Missions() {
           <div className="group-heading"><div><span>SETOR</span><h2>{label}</h2></div><b>{items.length} REGISTROS</b></div>
           <div className="mission-list-full">
             {items.length === 0 ? <SystemCard className="missions-empty"><Target size={27} /><strong>NENHUM SINAL ENCONTRADO</strong><p>Ajuste os filtros ou registre uma nova missão.</p></SystemCard> : items.map((mission, index) => <motion.article className={`mission-card-full status-${mission.status} priority-${mission.priority}`} key={mission.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * .03, .25) }}>
-              <button className="mission-check" aria-label={`Concluir ${mission.title}`} disabled={mission.status !== "active" || complete.isPending} onClick={() => complete.mutate({ id: mission.id })}><Check size={16} /></button>
+              <button
+                className="mission-check"
+                aria-label={mission.status === "completed" ? `Desfazer conclusão de ${mission.title}` : `Concluir ${mission.title}`}
+                title={mission.status === "completed" ? "Desfazer conclusão" : "Concluir missão"}
+                disabled={mission.status === "expired" || complete.isPending || uncomplete.isPending}
+                onClick={() => mission.status === "completed" ? uncomplete.mutate({ id: mission.id }) : complete.mutate({ id: mission.id })}
+              ><Check size={16} /></button>
               <div className="mission-content-full">
                 <div className="mission-labels"><span>{typeLabels[mission.type]}</span><span>{mission.category}</span>{mission.isSystem && <b>SISTEMA</b>}<em>{mission.priority}</em></div>
                 <h3>{mission.title}</h3>

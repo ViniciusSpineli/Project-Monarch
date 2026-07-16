@@ -29,8 +29,10 @@ import {
   getLocalDateKey,
   getWeekKey,
   progressBoss,
+  rankForLevel,
   selectDailyMissionTemplate,
   skillXpRequired,
+  titleForLevel,
   xpRequiredForLevel,
 } from "../shared/progression";
 import { ENV } from "./_core/env";
@@ -230,8 +232,9 @@ export async function ensureSeedData(userId: number) {
       level: 1,
       currentXp: 0,
       totalXp: 0,
-      title: "Caçador Desperto",
-      rank: "E",
+      // Título/rank vêm das funções oficiais de progressão para nunca divergirem do XP.
+      title: titleForLevel(1),
+      rank: rankForLevel(1),
       streak: 0,
       longestStreak: 0,
       lastActiveDate: getLocalDateKey(),
@@ -250,11 +253,10 @@ export async function ensureSeedData(userId: number) {
   await touchStreak(userId);
 }
 
-export async function ensureDailySystemMission(userId: number) {
+export async function ensureDailySystemMission(userId: number, dateKey = getLocalDateKey()) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível");
-  const today = getLocalDateKey();
-  const existing = await db.select().from(missions).where(and(eq(missions.userId, userId), eq(missions.dueDate, today), eq(missions.isSystem, true))).limit(1);
+  const existing = await db.select().from(missions).where(and(eq(missions.userId, userId), eq(missions.dueDate, dateKey), eq(missions.isSystem, true))).limit(1);
   if (existing.length) return existing[0];
 
   const pool = [
@@ -264,34 +266,36 @@ export async function ensureDailySystemMission(userId: number) {
     { title: "Silêncio do Caçador", description: "Medite por 15 minutos e registre um aprendizado.", category: "Disciplina", xpReward: 75, skillSlug: "meditation" },
     { title: "Capítulo do Despertar", description: "Leia por 30 minutos e anote uma ideia útil.", category: "Inteligência", xpReward: 80, skillSlug: "reading" },
   ];
-  const dailyMission = selectDailyMissionTemplate(today, pool);
+  const dailyMission = selectDailyMissionTemplate(dateKey, pool);
   const result = await db.insert(missions).values({
     ...dailyMission,
     userId,
     type: "challenge",
     priority: "high",
-    dueDate: today,
+    dueDate: dateKey,
     isSystem: true,
     durationMinutes: 30,
   }).returning({ id: missions.id });
   const created = (await db.select().from(missions).where(eq(missions.id, result[0].id)).limit(1))[0];
-  await db.insert(notifications).values({ userId, type: "mission", title: "NOVA MISSÃO DO SISTEMA", message: created.title });
+  // Notifica apenas para o dia corrente — preenchimento retroativo não gera alerta.
+  if (dateKey === getLocalDateKey()) {
+    await db.insert(notifications).values({ userId, type: "mission", title: "NOVA MISSÃO DO SISTEMA", message: created.title });
+  }
   return created;
 }
 
 // Garante as missões da rotina diária para hoje, sem duplicar (idempotente por título + dueDate).
 // Rotina pessoal: só o dono (vinicius.spineli) recebe. Calistenia e afins com `weekdays` só entram nos dias configurados.
-export async function ensureDailyRoutineMissions(userId: number) {
+export async function ensureDailyRoutineMissions(userId: number, dateKey = getLocalDateKey()) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível");
   const user = (await db.select().from(users).where(eq(users.id, userId)).limit(1))[0];
   if (!user || user.username !== ADMIN_USERNAME) return;
 
-  const now = new Date();
-  const today = getLocalDateKey(now);
-  const weekday = now.getDay();
+  // Dia da semana do dia-alvo (meio-dia evita surpresas de fuso).
+  const weekday = new Date(`${dateKey}T12:00:00`).getDay();
   const dueToday = dailyRoutineTemplates.filter(item => !item.weekdays || item.weekdays.includes(weekday));
-  const existing = await db.select({ title: missions.title }).from(missions).where(and(eq(missions.userId, userId), eq(missions.dueDate, today)));
+  const existing = await db.select({ title: missions.title }).from(missions).where(and(eq(missions.userId, userId), eq(missions.dueDate, dateKey)));
   const existingTitles = new Set(existing.map(row => row.title));
   const toCreate = dueToday.filter(item => !existingTitles.has(item.title));
   if (!toCreate.length) return;
@@ -306,9 +310,22 @@ export async function ensureDailyRoutineMissions(userId: number) {
     skillSlug: null,
     priority: item.priority,
     status: "active" as const,
-    dueDate: today,
+    dueDate: dateKey,
     isSystem: true,
   })));
+}
+
+// Gera retroativamente as missões de um dia passado (desafio do Sistema + rotina),
+// para o operador preencher o que fez quando o app não estava disponível.
+export async function backfillDayMissions(userId: number, dateKey: string) {
+  const today = getLocalDateKey();
+  if (dateKey > today) throw new Error("Não é possível gerar missões para uma data futura.");
+  if (dateKey < daysAgoDate(60)) throw new Error("Data muito antiga — o limite é 60 dias atrás.");
+  await ensureDailySystemMission(userId, dateKey);
+  await ensureDailyRoutineMissions(userId, dateKey);
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível");
+  return db.select().from(missions).where(and(eq(missions.userId, userId), eq(missions.dueDate, dateKey))).orderBy(desc(missions.isSystem), desc(missions.priority));
 }
 
 export async function ensureWeeklyBoss(userId: number) {
@@ -493,8 +510,10 @@ export async function completeMission(userId: number, id: number) {
   for (const key of categoryToAttribute[mission.category] ?? ["discipline"]) {
     await db.update(attributes).set({ progress: sql`MIN(99, ${attributes.progress} + 3)` }).where(and(eq(attributes.userId, userId), eq(attributes.key, key)));
   }
+  // Missão retroativa (dueDate no passado): o heatmap/estatísticas contam no dia da missão, não em hoje.
   const today = getLocalDateKey();
-  await db.insert(dailyActivity).values({ userId, date: today, xp: mission.xpReward, missions: 1, studyMinutes: mission.category === "Inteligência" ? mission.durationMinutes : 0, workouts: mission.category === "Força" ? 1 : 0, cardioMinutes: mission.category === "Vitalidade" ? mission.durationMinutes : 0 }).onConflictDoUpdate({ target: [dailyActivity.userId, dailyActivity.date], set: { xp: sql`${dailyActivity.xp} + ${mission.xpReward}`, missions: sql`${dailyActivity.missions} + 1`, studyMinutes: sql`${dailyActivity.studyMinutes} + ${mission.category === "Inteligência" ? mission.durationMinutes : 0}`, workouts: sql`${dailyActivity.workouts} + ${mission.category === "Força" ? 1 : 0}`, cardioMinutes: sql`${dailyActivity.cardioMinutes} + ${mission.category === "Vitalidade" ? mission.durationMinutes : 0}` } });
+  const activityDate = mission.dueDate < today ? mission.dueDate : today;
+  await db.insert(dailyActivity).values({ userId, date: activityDate, xp: mission.xpReward, missions: 1, studyMinutes: mission.category === "Inteligência" ? mission.durationMinutes : 0, workouts: mission.category === "Força" ? 1 : 0, cardioMinutes: mission.category === "Vitalidade" ? mission.durationMinutes : 0 }).onConflictDoUpdate({ target: [dailyActivity.userId, dailyActivity.date], set: { xp: sql`${dailyActivity.xp} + ${mission.xpReward}`, missions: sql`${dailyActivity.missions} + 1`, studyMinutes: sql`${dailyActivity.studyMinutes} + ${mission.category === "Inteligência" ? mission.durationMinutes : 0}`, workouts: sql`${dailyActivity.workouts} + ${mission.category === "Força" ? 1 : 0}`, cardioMinutes: sql`${dailyActivity.cardioMinutes} + ${mission.category === "Vitalidade" ? mission.durationMinutes : 0}` } });
   await db.insert(activities).values({ userId, type: "mission", title: mission.title, description: "Missão concluída. O Sistema registrou sua evolução.", xp: mission.xpReward });
 
   const boss = (await db.select().from(bosses).where(and(eq(bosses.userId, userId), eq(bosses.weekKey, getWeekKey()), eq(bosses.status, "active"))).limit(1))[0];
@@ -512,6 +531,117 @@ export async function completeMission(userId: number, id: number) {
     }
   }
   return { mission, ...reward, bossDefeated };
+}
+
+// Desfaz a conclusão de uma missão (clique errado, por exemplo), revertendo os efeitos:
+// XP/nível/título/rank do personagem (recomputados do total, que é determinístico),
+// ganhos de atributo de level-ups desfeitos, progresso de categoria, atividade diária
+// do dia em que contou, XP da skill vinculada, progresso do boss e o registro da timeline.
+export async function uncompleteMission(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível");
+  const mission = (await db.select().from(missions).where(and(eq(missions.userId, userId), eq(missions.id, id))).limit(1))[0];
+  if (!mission) throw new Error("Missão não encontrada");
+  if (mission.status !== "completed") throw new Error("A missão não está concluída");
+
+  const completedAtDate = mission.completedAt ? new Date(mission.completedAt) : new Date();
+  const completedKey = getLocalDateKey(completedAtDate);
+  // Mesma regra usada na conclusão: missão retroativa conta no dueDate.
+  const activityDate = mission.dueDate < completedKey ? mission.dueDate : completedKey;
+
+  await db.update(missions).set({ status: "active", completedAt: null }).where(and(eq(missions.userId, userId), eq(missions.id, id)));
+
+  // Boss da semana em que a conclusão contou. Se esta missão foi a que derrotou o boss,
+  // a derrota também é desfeita (XP do boss, conquista e registro na timeline).
+  let bossXpToRevert = 0;
+  const boss = (await db.select().from(bosses).where(and(eq(bosses.userId, userId), eq(bosses.weekKey, getWeekKey(completedAtDate)))).limit(1))[0];
+  if (boss && boss.metric === "missions") {
+    const newCurrent = Math.max(0, boss.current - 1);
+    if (boss.status === "defeated" && newCurrent < boss.target) {
+      bossXpToRevert = boss.xpReward;
+      await db.update(bosses).set({ current: newCurrent, status: "active", defeatedAt: null }).where(eq(bosses.id, boss.id));
+      await db.update(achievements).set({ progress: 0, unlockedAt: null }).where(and(eq(achievements.userId, userId), eq(achievements.code, boss.achievementCode)));
+      const bossActivity = (await db.select().from(activities).where(and(eq(activities.userId, userId), eq(activities.type, "boss"), eq(activities.title, `Boss derrotado: ${boss.title}`))).orderBy(desc(activities.createdAt)).limit(1))[0];
+      if (bossActivity) await db.delete(activities).where(eq(activities.id, bossActivity.id));
+    } else if (boss.status === "active") {
+      await db.update(bosses).set({ current: newCurrent }).where(eq(bosses.id, boss.id));
+    }
+  }
+
+  // Personagem: recomputa do zero com o total sem o XP da missão (e do boss, se a derrota foi desfeita).
+  const hero = (await db.select().from(character).where(eq(character.userId, userId)).limit(1))[0];
+  if (hero) {
+    const base = { level: 1, currentXp: 0, totalXp: 0 };
+    const before = applyXp(base, hero.totalXp);
+    const newTotal = Math.max(0, hero.totalXp - mission.xpReward - bossXpToRevert);
+    const after = applyXp(base, newTotal);
+    await db.update(character).set({
+      level: after.level,
+      currentXp: after.currentXp,
+      totalXp: newTotal,
+      title: after.title,
+      rank: after.rank,
+    }).where(eq(character.userId, userId));
+    for (const key of Object.keys(before.attributeGains)) {
+      const delta = (before.attributeGains[key] ?? 0) - (after.attributeGains[key] ?? 0);
+      if (delta > 0) {
+        await db.update(attributes).set({ value: sql`MAX(1, ${attributes.value} - ${delta})` }).where(and(eq(attributes.userId, userId), eq(attributes.key, key)));
+        await db.insert(attributeHistory).values({ userId, attributeKey: key, delta: -delta, reason: `Conclusão desfeita: ${mission.title}` });
+      }
+    }
+    // Limpa da timeline os "Nível X alcançado" dos níveis desfeitos.
+    for (let level = after.level + 1; level <= before.level; level++) {
+      const levelActivity = (await db.select().from(activities).where(and(eq(activities.userId, userId), eq(activities.type, "level"), eq(activities.title, `Nível ${level} alcançado`))).orderBy(desc(activities.createdAt)).limit(1))[0];
+      if (levelActivity) await db.delete(activities).where(eq(activities.id, levelActivity.id));
+    }
+  }
+
+  // Progresso de categoria (o +3 aplicado na conclusão).
+  for (const key of categoryToAttribute[mission.category] ?? ["discipline"]) {
+    await db.update(attributes).set({ progress: sql`MAX(0, ${attributes.progress} - 3)` }).where(and(eq(attributes.userId, userId), eq(attributes.key, key)));
+  }
+
+  // Atividade diária do dia em que a conclusão contou.
+  await db.update(dailyActivity).set({
+    xp: sql`MAX(0, ${dailyActivity.xp} - ${mission.xpReward})`,
+    missions: sql`MAX(0, ${dailyActivity.missions} - 1)`,
+    studyMinutes: sql`MAX(0, ${dailyActivity.studyMinutes} - ${mission.category === "Inteligência" ? mission.durationMinutes : 0})`,
+    workouts: sql`MAX(0, ${dailyActivity.workouts} - ${mission.category === "Força" ? 1 : 0})`,
+    cardioMinutes: sql`MAX(0, ${dailyActivity.cardioMinutes} - ${mission.category === "Vitalidade" ? mission.durationMinutes : 0})`,
+  }).where(and(eq(dailyActivity.userId, userId), eq(dailyActivity.date, activityDate)));
+  // Se o dia zerou por completo, remove a linha (deixa o heatmap idêntico ao estado anterior).
+  await db.delete(dailyActivity).where(and(
+    eq(dailyActivity.userId, userId),
+    eq(dailyActivity.date, activityDate),
+    eq(dailyActivity.xp, 0),
+    eq(dailyActivity.missions, 0),
+    eq(dailyActivity.focusMinutes, 0),
+    eq(dailyActivity.studyMinutes, 0),
+    eq(dailyActivity.workouts, 0),
+    eq(dailyActivity.cardioMinutes, 0),
+  ));
+
+  // Skill vinculada: desfaz o XP ganho (recomputa nível/xp do total acumulado).
+  if (mission.skillSlug) {
+    const skill = (await db.select().from(skills).where(and(eq(skills.userId, userId), eq(skills.slug, mission.skillSlug))).limit(1))[0];
+    if (skill) {
+      const gained = Math.max(10, Math.round(mission.xpReward * 0.65));
+      let totalSkillXp = skill.xp;
+      for (let lv = 1; lv < skill.level; lv++) totalSkillXp += skillXpRequired(lv);
+      const recomputed = applySkillXp(1, 0, Math.max(0, totalSkillXp - gained));
+      await db.update(skills).set({
+        level: recomputed.level,
+        xp: recomputed.xp,
+        totalMinutes: Math.max(0, skill.totalMinutes - mission.durationMinutes),
+      }).where(eq(skills.id, skill.id));
+    }
+  }
+
+  // Remove o registro mais recente desta conclusão na timeline.
+  const lastActivity = (await db.select().from(activities).where(and(eq(activities.userId, userId), eq(activities.type, "mission"), eq(activities.title, mission.title))).orderBy(desc(activities.createdAt)).limit(1))[0];
+  if (lastActivity) await db.delete(activities).where(eq(activities.id, lastActivity.id));
+
+  return (await db.select().from(missions).where(eq(missions.id, id)).limit(1))[0];
 }
 
 export async function completeFocusSession(userId: number, skillSlug: string, minutes: number) {

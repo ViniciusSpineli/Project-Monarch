@@ -1,4 +1,5 @@
 import { ErrorSector, LoadingSector, PageHeader, SystemCard } from "@/components/SystemShell";
+import { rankImages } from "@/lib/rankImages";
 import { trpc } from "@/lib/trpc";
 import {
   Award,
@@ -50,6 +51,14 @@ export default function Dashboard() {
     },
     onError: error => toast.error(error.message),
   });
+  const uncomplete = trpc.missions.uncomplete.useMutation({
+    onSuccess: () => {
+      toast("Conclusão desfeita — XP e progresso revertidos.");
+      utils.dashboard.get.invalidate();
+      utils.missions.list.invalidate();
+    },
+    onError: error => toast.error(error.message),
+  });
 
   if (query.isLoading) return <LoadingSector />;
   if (query.isError || !query.data) return <ErrorSector retry={() => query.refetch()} />;
@@ -68,7 +77,13 @@ export default function Dashboard() {
           <div className="hero-scan" />
           <div className="hero-avatar-wrap">
             <div className="hero-rings"><i /><i /><i /></div>
-            <div className="hero-avatar"><span>C</span></div>
+            <div className="hero-avatar">
+              {rankImages[character.rank] ? (
+                <img src={rankImages[character.rank]} alt={`O mais forte do Rank ${character.rank}`} />
+              ) : (
+                <span>{character.rank?.[0]?.toUpperCase() ?? "C"}</span>
+              )}
+            </div>
             <div className="hero-level-badge"><span>LV</span><strong>{character.level}</strong></div>
           </div>
           <div className="hero-info">
@@ -89,7 +104,12 @@ export default function Dashboard() {
           <div className="dashboard-missions">
             {missions.length === 0 ? <div className="empty-state"><Check size={22} /><strong>SETOR LIMPO</strong><span>Nenhuma missão pendente.</span></div> : missions.slice(0, 5).map((mission, index) => (
               <motion.div className={`dashboard-mission ${mission.status === "completed" ? "completed" : ""} ${mission.isSystem ? "system" : ""}`} key={mission.id} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * .05 }}>
-                <button aria-label={`Concluir ${mission.title}`} disabled={mission.status === "completed" || complete.isPending} onClick={() => complete.mutate({ id: mission.id })}><Check size={14} /></button>
+                <button
+                  aria-label={mission.status === "completed" ? `Desfazer conclusão de ${mission.title}` : `Concluir ${mission.title}`}
+                  title={mission.status === "completed" ? "Desfazer conclusão" : "Concluir missão"}
+                  disabled={mission.status === "expired" || complete.isPending || uncomplete.isPending}
+                  onClick={() => mission.status === "completed" ? uncomplete.mutate({ id: mission.id }) : complete.mutate({ id: mission.id })}
+                ><Check size={14} /></button>
                 <div><div className="mission-tags">{mission.isSystem && <b>SISTEMA</b>}<span>{mission.category}</span></div><strong>{mission.title}</strong></div>
                 <em>+{mission.xpReward} XP</em>
               </motion.div>

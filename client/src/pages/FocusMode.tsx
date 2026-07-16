@@ -1,103 +1,156 @@
 import { ErrorSector, LoadingSector, PageHeader, SystemCard } from "@/components/SystemShell";
+import { rankImages } from "@/lib/rankImages";
 import { trpc } from "@/lib/trpc";
-import { BrainCircuit, Check, Coffee, Crosshair, Flame, Pause, Play, RotateCcw, ShieldCheck, Sparkles, Target, TimerReset, Zap } from "lucide-react";
-import { motion } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { Crown, Flame, Gauge, Swords, Zap } from "lucide-react";
+import {
+  Chart as ChartJS,
+  Filler,
+  Legend,
+  LineElement,
+  PointElement,
+  RadialLinearScale,
+  Tooltip,
+} from "chart.js";
+import { Radar } from "react-chartjs-2";
+import { motion, useMotionTemplate, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { useRef } from "react";
 
-const presets = [25, 50, 90];
-const iconMap = { BrainCircuit, ShieldCheck, Sparkles, Crosshair };
+ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
+
+// Card holográfico: inclina em 3D seguindo o cursor/dedo, com brilho refletindo.
+function TiltCard({ children }: { children: React.ReactNode }) {
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const px = useMotionValue(0.5);
+  const py = useMotionValue(0.5);
+  const rotateY = useSpring(useTransform(px, [0, 1], [-16, 16]), { stiffness: 170, damping: 20 });
+  const rotateX = useSpring(useTransform(py, [0, 1], [11, -11]), { stiffness: 170, damping: 20 });
+  const glareX = useTransform(px, value => `${value * 100}%`);
+  const glareY = useTransform(py, value => `${value * 100}%`);
+  const glareOpacity = useSpring(useMotionValue(0), { stiffness: 200, damping: 26 });
+  const glareBackground = useMotionTemplate`radial-gradient(circle at ${glareX} ${glareY}, rgba(190,242,255,.32), rgba(139,92,246,.08) 38%, transparent 62%)`;
+
+  const handleMove = (event: React.PointerEvent) => {
+    const rect = sceneRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    px.set(Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)));
+    py.set(Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)));
+    glareOpacity.set(1);
+  };
+  const reset = () => { px.set(0.5); py.set(0.5); glareOpacity.set(0); };
+
+  return (
+    <div className="tilt-scene" ref={sceneRef} onPointerMove={handleMove} onPointerLeave={reset} onPointerCancel={reset}>
+      <motion.div className="tilt-card" style={{ rotateX, rotateY }}>
+        {children}
+        <motion.div className="tilt-glare" style={{ background: glareBackground, opacity: glareOpacity }} />
+      </motion.div>
+    </div>
+  );
+}
 
 export default function FocusMode() {
-  const utils = trpc.useUtils();
   const dashboard = trpc.dashboard.get.useQuery(undefined, { refetchOnWindowFocus: false });
-  const [minutes, setMinutes] = useState(25);
-  const [secondsLeft, setSecondsLeft] = useState(25 * 60);
-  const [running, setRunning] = useState(false);
-  const [skillSlug, setSkillSlug] = useState("programming");
-  const completionSent = useRef(false);
-  const complete = trpc.focus.complete.useMutation({
-    onSuccess: result => {
-      toast.success(`SESSÃO CONCLUÍDA: +${result.xpReward} XP`);
-      if (result.skillLevelUp) toast(`SKILL EVOLUÍDA: ${result.skillLevelUp.name} Nv. ${result.skillLevelUp.level}`);
-      setRunning(false);
-      utils.dashboard.get.invalidate();
-    },
-    onError: error => { toast.error(error.message); completionSent.current = false; },
-  });
+  const statistics = trpc.statistics.get.useQuery(undefined, { refetchOnWindowFocus: false });
 
-  useEffect(() => {
-    if (!running) return;
-    const timer = window.setInterval(() => setSecondsLeft(value => Math.max(0, value - 1)), 1000);
-    return () => window.clearInterval(timer);
-  }, [running]);
-
-  useEffect(() => {
-    if (secondsLeft === 0 && !completionSent.current) {
-      completionSent.current = true;
-      complete.mutate({ skillSlug, minutes });
-    }
-  }, [secondsLeft, skillSlug, minutes]);
-
-  const changePreset = (value: number) => {
-    setRunning(false);
-    setMinutes(value);
-    setSecondsLeft(value * 60);
-    completionSent.current = false;
-  };
-  const reset = () => { setRunning(false); setSecondsLeft(minutes * 60); completionSent.current = false; };
-  const progress = 1 - secondsLeft / (minutes * 60);
-  const timeLabel = `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(secondsLeft % 60).padStart(2, "0")}`;
-  const reward = Math.max(10, Math.round(minutes * 2.2));
-  const selectedSkill = dashboard.data?.skills.find(skill => skill.slug === skillSlug);
-  const circumference = 2 * Math.PI * 145;
-
-  if (dashboard.isLoading) return <LoadingSector label="PREPARANDO CÂMARA DE FOCO" />;
+  if (dashboard.isLoading || statistics.isLoading) return <LoadingSector label="INVOCANDO O CAÇADOR" />;
   if (dashboard.isError || !dashboard.data) return <ErrorSector retry={() => dashboard.refetch()} />;
+  if (statistics.isError || !statistics.data) return <ErrorSector retry={() => statistics.refetch()} />;
+
+  const character = dashboard.data.character;
+  const attributes = statistics.data.attributes;
+  const portrait = rankImages[character.rank];
+  const xpPercent = Math.min(100, Math.round((character.currentXp / character.xpForNextLevel) * 100));
+  const maxAttribute = Math.max(10, ...attributes.map(item => item.value));
+
+  const radarData = {
+    labels: attributes.map(item => item.label),
+    datasets: [
+      {
+        label: "Atributos",
+        data: attributes.map(item => item.value),
+        borderColor: "#67e8f9",
+        backgroundColor: "rgba(34,211,238,.14)",
+        pointBackgroundColor: attributes.map(item => item.color),
+        pointBorderColor: "#0b1022",
+        pointRadius: 4,
+      },
+    ],
+  };
+
+  const radarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { backgroundColor: "rgba(10,13,29,.96)", borderColor: "rgba(103,232,249,.25)", borderWidth: 1, titleColor: "#e6faff", bodyColor: "#9baaca", padding: 12 },
+    },
+    scales: {
+      r: {
+        beginAtZero: true,
+        suggestedMax: maxAttribute,
+        grid: { color: "rgba(110,133,183,.14)" },
+        angleLines: { color: "rgba(110,133,183,.14)" },
+        pointLabels: { color: "#9baaca", font: { size: 11, weight: 700 as const } },
+        ticks: { display: false },
+      },
+    },
+  };
 
   return (
     <>
-      <PageHeader eyebrow="CÂMARA DE CONCENTRAÇÃO" title="Modo Foco" description="Isole distrações, vincule uma skill e conclua a sessão. O Sistema concede XP automaticamente ao término do ciclo." />
-      <div className="focus-layout">
-        <SystemCard className={`focus-chamber ${running ? "running" : ""}`} accent="#22d3ee">
+      <PageHeader eyebrow="CÂMARA DO CAÇADOR" title="Sala de Evolução" description="O Sistema projeta o mais forte do seu rank atual. Evolua seus atributos para reivindicar o próximo trono." />
+      <div className="hunter-layout">
+        <SystemCard className="hunter-portrait-card" accent="#22d3ee">
           <div className="focus-scanlines" />
-          <div className="focus-state"><span className={running ? "online" : ""}>{running ? "SESSÃO EM CURSO" : secondsLeft === 0 ? "SESSÃO CONCLUÍDA" : "CÂMARA PRONTA"}</span><strong>PROTOCOLO // CONCENTRAÇÃO PROFUNDA</strong></div>
-          <div className="timer-orbit">
-            <svg viewBox="0 0 330 330" aria-hidden="true"><circle cx="165" cy="165" r="145" className="timer-base" /><motion.circle cx="165" cy="165" r="145" className="timer-progress" strokeDasharray={circumference} animate={{ strokeDashoffset: circumference * (1 - progress) }} transition={{ duration: .5 }} /></svg>
-            <div className="timer-core"><Crosshair size={22} /><span>{running ? "FOCO ATIVO" : "TEMPO RESTANTE"}</span><strong>{timeLabel}</strong><small>{Math.round(progress * 100)}% DO CICLO</small></div>
-          </div>
-          <div className="timer-actions">
-            <button className="timer-secondary" onClick={reset} aria-label="Reiniciar"><RotateCcw size={18} /></button>
-            <button className="timer-primary" disabled={secondsLeft === 0 || complete.isPending} onClick={() => setRunning(value => !value)}>{running ? <Pause size={23} /> : <Play size={23} />}{running ? "PAUSAR" : secondsLeft === 0 ? "CONCLUÍDO" : "INICIAR FOCO"}</button>
-            <button className="timer-secondary" onClick={() => changePreset(25)} aria-label="Novo ciclo"><TimerReset size={18} /></button>
+          <TiltCard>
+            <div className="hunter-portrait">
+              {portrait ? (
+                <motion.img
+                  key={character.rank}
+                  src={portrait}
+                  alt={`O mais forte do Rank ${character.rank}`}
+                  initial={{ opacity: 0, scale: 1.04 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: .6, ease: [0.23, 1, 0.32, 1] }}
+                />
+              ) : (
+                <div className="hunter-portrait-fallback"><span>{character.rank?.[0]?.toUpperCase() ?? "?"}</span></div>
+              )}
+              <div className="hunter-portrait-glow" />
+              <div className="hunter-rank-tag"><span>RANK</span><strong>{character.rank}</strong></div>
+              <div className="hero-level-badge"><span>LV</span><strong>{character.level}</strong></div>
+            </div>
+          </TiltCard>
+          <div className="hunter-portrait-info">
+            <div className="hero-title"><Crown size={15} /> {character.title}</div>
+            <div className="xp-block">
+              <div className="xp-label"><span>EXPERIÊNCIA</span><strong>{character.currentXp.toLocaleString("pt-BR")} <small>/ {character.xpForNextLevel.toLocaleString("pt-BR")} XP</small></strong></div>
+              <div className="xp-track"><motion.i initial={{ width: 0 }} animate={{ width: `${xpPercent}%` }} transition={{ duration: .8, ease: [0.23, 1, 0.32, 1] }} /><div className="xp-flare" style={{ left: `${xpPercent}%` }} /></div>
+              <div className="xp-meta"><span>{xpPercent}% para o próximo nível</span><span>{character.totalXp.toLocaleString("pt-BR")} XP total</span></div>
+            </div>
+            <div className="hero-stats"><div><span>SEQUÊNCIA</span><strong><Flame size={13} /> {character.streak}d</strong></div><div><span>RECORDE</span><strong>{character.longestStreak}d</strong></div><div><span>XP TOTAL</span><strong><Zap size={13} /> {character.totalXp.toLocaleString("pt-BR")}</strong></div></div>
           </div>
         </SystemCard>
 
-        <div className="focus-side">
-          <SystemCard accent="#8b5cf6">
-            <div className="card-head"><div><span>CONFIGURAÇÃO DO PROTOCOLO</span><h2>Parâmetros da sessão</h2></div><Target size={17} className="text-violet-300" /></div>
-            <div className="focus-config">
-              <label><span>DURAÇÃO</span><div className="preset-grid">{presets.map(value => <button key={value} className={minutes === value ? "active" : ""} onClick={() => changePreset(value)} disabled={running}><strong>{value}</strong><small>MIN</small></button>)}</div></label>
-              <label><span>SKILL VINCULADA</span><div className="skill-select-wrap"><Sparkles size={16} /><select value={skillSlug} onChange={e => setSkillSlug(e.target.value)} disabled={running}>{dashboard.data.skills.map(skill => <option value={skill.slug} key={skill.id}>{skill.name} — Nv. {skill.level}</option>)}</select></div></label>
-            </div>
+        <div className="hunter-side">
+          <SystemCard className="hunter-radar-card" accent="#8b5cf6">
+            <div className="card-head"><div><span>LEITURA DO SISTEMA</span><h2>Radar de atributos</h2></div><Gauge size={17} className="text-violet-300" /></div>
+            <div className="hunter-radar-area"><Radar data={radarData} options={radarOptions} /></div>
           </SystemCard>
 
-          <SystemCard accent="#fbbf24">
-            <div className="card-head"><div><span>RECOMPENSA PROJETADA</span><h2>Resultado do ciclo</h2></div><Zap size={17} className="text-amber-300" /></div>
-            <div className="focus-reward">
-              <div className="reward-xp"><Zap size={22} /><span>XP AO CONCLUIR</span><strong>+{reward}</strong></div>
-              <div className="reward-skill"><div className="skill-reward-icon">{selectedSkill ? (() => { const Icon = iconMap[selectedSkill.icon as keyof typeof iconMap] ?? Sparkles; return <Icon size={20} />; })() : <Sparkles size={20} />}</div><div><span>SKILL BENEFICIADA</span><strong>{selectedSkill?.name ?? "—"}</strong><small>{selectedSkill?.xp ?? 0} / {selectedSkill?.xpForNextLevel ?? 0} XP atual</small></div></div>
+          <SystemCard className="hunter-attributes-card" accent="#34d399">
+            <div className="card-head"><div><span>NÚCLEO VITAL</span><h2>Atributos</h2></div><Swords size={17} className="text-emerald-300" /></div>
+            <div className="hunter-attribute-list">
+              {attributes.map((attribute, index) => (
+                <motion.div className="hunter-attribute" key={attribute.label} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * .05 }}>
+                  <span style={{ color: attribute.color }}>{attribute.label}</span>
+                  <div className="hunter-attribute-track"><i style={{ width: `${Math.round((attribute.value / maxAttribute) * 100)}%`, background: attribute.color }} /></div>
+                  <strong>{attribute.value}</strong>
+                </motion.div>
+              ))}
             </div>
-          </SystemCard>
-
-          <SystemCard accent="#34d399">
-            <div className="focus-rules"><ShieldCheck size={19} /><div><span>REGRAS DA CÂMARA</span><p>O XP é concedido somente quando o cronômetro chega a zero. Pausas preservam o progresso; reiniciar cancela o ciclo atual.</p></div></div>
           </SystemCard>
         </div>
-      </div>
-
-      <div className="focus-tips">
-        <div><BrainCircuit size={17} /><span>Prepare o ambiente antes de iniciar.</span></div><div><Coffee size={17} /><span>Use pausas conscientes entre ciclos.</span></div><div><Flame size={17} /><span>Sessões concluídas fortalecem sua sequência.</span></div><div><Check size={17} /><span>Uma tarefa por sessão.</span></div>
       </div>
     </>
   );

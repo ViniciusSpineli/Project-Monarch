@@ -8,7 +8,6 @@ import {
   BookOpenText,
   Check,
   ChevronRight,
-  Crosshair,
   Flame,
   LayoutDashboard,
   LogOut,
@@ -22,21 +21,73 @@ import {
   Target,
   TimerReset,
   UserCheck,
+  Volume2,
+  VolumeX,
   X,
   Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useLocation } from "wouter";
 
 const navItems = [
   { path: "/", label: "Painel", icon: LayoutDashboard, exact: true },
   { path: "/missoes", label: "Missões", icon: ScrollText },
-  { path: "/foco", label: "Modo Foco", icon: Crosshair },
+  { path: "/foco", label: "Caçador", icon: Swords },
   { path: "/estatisticas", label: "Estatísticas", icon: BarChart3 },
   { path: "/evolucao", label: "Evolução", icon: BookOpenText },
 ];
+
+// Trilha ambiente do Sistema (DARK ARIA <LV2>). Coloque o MP3 em client/public/audio/.
+const AMBIENT_TRACK = "/audio/dark-aria.wav";
+const MUSIC_MUTED_KEY = "system-music-muted";
+
+function useAmbientMusic() {
+  const [muted, setMuted] = useState(() => localStorage.getItem(MUSIC_MUTED_KEY) === "1");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
+
+  useEffect(() => {
+    const audio = new Audio(AMBIENT_TRACK);
+    audio.loop = true;
+    audio.volume = 0.35;
+    audio.preload = "auto";
+    audioRef.current = audio;
+
+    const tryPlay = () => {
+      if (!mutedRef.current) audio.play().catch(() => {});
+    };
+    // Navegadores bloqueiam autoplay com som: tenta já e destrava na primeira interação.
+    tryPlay();
+    window.addEventListener("pointerdown", tryPlay, { once: true });
+    window.addEventListener("keydown", tryPlay, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", tryPlay);
+      window.removeEventListener("keydown", tryPlay);
+      audio.pause();
+      audio.src = "";
+      audioRef.current = null;
+    };
+  }, []);
+
+  const toggleMuted = () => {
+    setMuted(previous => {
+      const next = !previous;
+      localStorage.setItem(MUSIC_MUTED_KEY, next ? "1" : "0");
+      const audio = audioRef.current;
+      if (audio) {
+        if (next) audio.pause();
+        else audio.play().catch(() => {});
+      }
+      return next;
+    });
+  };
+
+  return { muted, toggleMuted };
+}
 
 const notificationIcons = {
   level: Zap,
@@ -56,6 +107,7 @@ export default function SystemShell({ children }: { children: React.ReactNode })
   const [approvalsOpen, setApprovalsOpen] = useState(false);
   const { user, logout, loggingOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { muted, toggleMuted } = useAmbientMusic();
   const dashboard = trpc.dashboard.get.useQuery(undefined, { staleTime: 20_000, refetchOnWindowFocus: false });
   const utils = trpc.useUtils();
   const markRead = trpc.notifications.markAllRead.useMutation({
@@ -129,6 +181,14 @@ export default function SystemShell({ children }: { children: React.ReactNode })
           <div className="topbar-actions">
             <div className="hidden sm:flex system-chip"><Flame size={15} /><span>{hero?.streak ?? 0} dias</span></div>
             <div className="hidden sm:flex system-chip xp-chip"><Zap size={15} /><span>{hero?.totalXp?.toLocaleString("pt-BR") ?? "—"} XP</span></div>
+            <button
+              className={`icon-btn ${muted ? "music-off" : "music-on"}`}
+              onClick={toggleMuted}
+              aria-label={muted ? "Ativar trilha do Sistema" : "Silenciar trilha do Sistema"}
+              title={muted ? "Ativar trilha do Sistema" : "Silenciar trilha do Sistema"}
+            >
+              {muted ? <VolumeX size={19} /> : <Volume2 size={19} />}
+            </button>
             <div className="relative">
               <button className="icon-btn" onClick={() => setNotificationsOpen(value => !value)} aria-label="Notificações">
                 <Bell size={19} />
@@ -197,7 +257,7 @@ export default function SystemShell({ children }: { children: React.ReactNode })
       <nav className="mobile-bottom-nav lg:hidden" aria-label="Navegação móvel">
         {navItems.map(item => {
           const active = item.exact ? location === item.path : location.startsWith(item.path);
-          return <Link key={item.path} href={item.path} className={active ? "active" : ""}><item.icon size={19} /><span>{item.label === "Estatísticas" ? "Stats" : item.label === "Modo Foco" ? "Foco" : item.label}</span></Link>;
+          return <Link key={item.path} href={item.path} className={active ? "active" : ""}><item.icon size={19} /><span>{item.label === "Estatísticas" ? "Stats" : item.label}</span></Link>;
         })}
       </nav>
 
