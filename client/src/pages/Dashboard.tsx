@@ -1,6 +1,7 @@
 import { ErrorSector, LoadingSector, PageHeader, SystemCard } from "@/components/SystemShell";
 import { rankImages } from "@/lib/rankImages";
 import { trpc } from "@/lib/trpc";
+import { isSkillProtocolMission } from "@shared/systemMissions";
 import {
   Award,
   BookOpen,
@@ -110,7 +111,7 @@ export default function Dashboard() {
                   disabled={mission.status === "expired" || complete.isPending || uncomplete.isPending}
                   onClick={() => mission.status === "completed" ? uncomplete.mutate({ id: mission.id }) : complete.mutate({ id: mission.id })}
                 ><Check size={14} /></button>
-                <div><div className="mission-tags">{mission.isSystem && <b>SISTEMA</b>}<span>{mission.category}</span></div><strong>{mission.title}</strong></div>
+                <div><div className="mission-tags">{isSkillProtocolMission(mission) ? <b className="system-mission-tag">MISSÃO DO SISTEMA</b> : mission.isSystem && <b>SISTEMA</b>}<span>{mission.category}</span></div><strong>{mission.title}</strong></div>
                 <em>+{mission.xpReward} XP</em>
               </motion.div>
             ))}

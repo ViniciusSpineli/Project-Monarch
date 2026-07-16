@@ -1,6 +1,6 @@
 // O mais forte de cada rank — imagens em client/public/ranks/.
-// "Humano" ainda não tem retrato: quem consumir o mapa deve tratar o fallback.
 export const rankImages: Record<string, string> = {
+  Humano: "/ranks/humano.jpeg",
   E: "/ranks/e.jpeg",
   D: "/ranks/d.jpeg",
   C: "/ranks/c.jpeg",

@@ -108,13 +108,14 @@ export default function SystemShell({ children }: { children: React.ReactNode })
   const { user, logout, loggingOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { muted, toggleMuted } = useAmbientMusic();
-  const dashboard = trpc.dashboard.get.useQuery(undefined, { staleTime: 20_000, refetchOnWindowFocus: false });
+  // refetchInterval mantém o sininho vivo: novos cadastros e alertas chegam sem precisar recarregar.
+  const dashboard = trpc.dashboard.get.useQuery(undefined, { staleTime: 20_000, refetchOnWindowFocus: false, refetchInterval: 60_000 });
   const utils = trpc.useUtils();
   const markRead = trpc.notifications.markAllRead.useMutation({
     onSuccess: () => utils.dashboard.get.invalidate(),
   });
   const isAdmin = user?.role === "admin";
-  const pendingUsers = trpc.admin.pendingUsers.useQuery(undefined, { enabled: isAdmin, refetchOnWindowFocus: false });
+  const pendingUsers = trpc.admin.pendingUsers.useQuery(undefined, { enabled: isAdmin, refetchOnWindowFocus: false, refetchInterval: 60_000 });
   const pendingCount = pendingUsers.data?.length ?? 0;
   const setUserStatus = trpc.admin.setUserStatus.useMutation({
     onSuccess: updated => {
@@ -201,7 +202,12 @@ export default function SystemShell({ children }: { children: React.ReactNode })
                     <div className="notification-list">
                       {notifications.length === 0 ? <div className="empty-mini"><Check size={20} /><span>Nenhum alerta pendente.</span></div> : notifications.map(note => {
                         const Icon = notificationIcons[note.type];
-                        return <div className={`notification-item note-${note.type}`} key={note.id}><div className="note-icon"><Icon size={16} /></div><div><strong>{note.title}</strong><p>{note.message}</p><span>{new Date(note.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div></div>;
+                        // Cadastro pendente: o admin clica na notificação e cai direto no painel de aprovações.
+                        const isApprovalRequest = isAdmin && note.type === "system" && note.title.includes("CADASTRO");
+                        const body = <><div className="note-icon"><Icon size={16} /></div><div><strong>{note.title}</strong><p>{note.message}</p><span>{new Date(note.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>{isApprovalRequest && <em className="note-action-hint"><UserCheck size={12} /> Clique para revisar</em>}</div></>;
+                        return isApprovalRequest
+                          ? <button type="button" className={`notification-item note-${note.type} note-clickable`} key={note.id} onClick={() => { setNotificationsOpen(false); setApprovalsOpen(true); }}>{body}</button>
+                          : <div className={`notification-item note-${note.type}`} key={note.id}>{body}</div>;
                       })}
                     </div>
                     {notifications.length > 0 && <button className="panel-action" onClick={() => markRead.mutate()} disabled={markRead.isPending}><Check size={15} /> Marcar transmissões como lidas</button>}

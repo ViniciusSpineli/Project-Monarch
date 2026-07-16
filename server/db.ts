@@ -24,7 +24,6 @@ import {
   applySkillXp,
   applyXp,
   canCompleteMission,
-  duplicateMissionTitle,
   focusXp,
   getLocalDateKey,
   getWeekKey,
@@ -35,6 +34,7 @@ import {
   titleForLevel,
   xpRequiredForLevel,
 } from "../shared/progression";
+import { dailySkillMissionTemplates } from "../shared/systemMissions";
 import { ENV } from "./_core/env";
 import { hashPassword } from "./_core/password";
 
@@ -178,6 +178,22 @@ const attributeSeeds = [
   { key: "charisma", label: "Carisma", value: 1, progress: 0, color: "#f472b6", icon: "Sparkles" },
 ];
 
+// Skill segue a mesma escada de ranks do caçador, mas nasce em E (não existe skill "Humano").
+const skillRankForLevel = (level: number) => (level < 8 ? "E" : rankForLevel(level));
+
+// Skills base: nascem no nível 1 sem XP e evoluem via missões vinculadas.
+// Os slugs precisam bater com o select do modal de missões e com o pool de missões do Sistema.
+const skillSeeds = [
+  { slug: "programming", name: "Trabalho", icon: "Code2" },
+  { slug: "strength", name: "Treino Físico", icon: "Dumbbell" },
+  { slug: "reading", name: "Leitura Estratégica", icon: "BookOpen" },
+  { slug: "meditation", name: "Meditação", icon: "Orbit" },
+  { slug: "cardio", name: "Cardio", icon: "HeartPulse" },
+  { slug: "learning", name: "Aprendizado", icon: "BrainCircuit" },
+  { slug: "screen-time", name: "Tempo de Tela", icon: "Gauge" },
+  { slug: "self-care", name: "Auto Cuidado", icon: "Sparkles" },
+];
+
 // Conquistas nascem travadas (progress 0, unlockedAt null): são metas a desbloquear, não histórico.
 const achievementSeeds = [
   { code: "first-mission", title: "Primeiro Chamado", description: "Conclua sua primeira missão.", rarity: "common" as const, icon: "Flag", progress: 0, target: 1, unlockedAt: null },
@@ -195,6 +211,7 @@ type DailyRoutineTemplate = {
   durationMinutes: number;
   priority: "low" | "medium" | "high" | "critical";
   weekdays?: number[];
+  skillSlug?: string;
 };
 
 const dailyRoutineTemplates: DailyRoutineTemplate[] = [
@@ -203,16 +220,35 @@ const dailyRoutineTemplates: DailyRoutineTemplate[] = [
   { title: "60 min de vídeo de drama", category: "Inteligência", xpReward: 40, durationMinutes: 60, priority: "medium" },
   { title: "30 anúncios 15 sec", category: "Disciplina", xpReward: 25, durationMinutes: 8, priority: "low" },
   { title: "1000 Likes comentários “Bora monetizar”", category: "Carisma", xpReward: 50, durationMinutes: 30, priority: "medium" },
-  { title: "10 min ou até acabar a energia duolingo", category: "Inteligência", xpReward: 40, durationMinutes: 10, priority: "medium" },
-  { title: "1 hora de bike", category: "Vitalidade", xpReward: 80, durationMinutes: 60, priority: "high" },
-  { title: "5 páginas de um livro", category: "Inteligência", xpReward: 40, durationMinutes: 20, priority: "medium" },
+  { title: "10 min ou até acabar a energia duolingo", category: "Inteligência", xpReward: 40, durationMinutes: 10, priority: "medium", skillSlug: "reading" },
+  { title: "1 hora de bike", category: "Vitalidade", xpReward: 80, durationMinutes: 60, priority: "high", skillSlug: "cardio" },
+  { title: "5 páginas de um livro", category: "Inteligência", xpReward: 40, durationMinutes: 20, priority: "medium", skillSlug: "reading" },
   { title: "4.5 L de água no dia", category: "Vitalidade", xpReward: 30, durationMinutes: 0, priority: "high" },
   { title: "Procurar e mandar algo romântico pra Steffany", category: "Carisma", xpReward: 40, durationMinutes: 10, priority: "medium" },
   { title: "Dar um abraço e um beijo na dona Rose", category: "Carisma", xpReward: 30, durationMinutes: 5, priority: "medium" },
   { title: "Arrumar a cama e o quarto", category: "Disciplina", xpReward: 30, durationMinutes: 15, priority: "medium" },
-  { title: "Calistenia", category: "Força", xpReward: 90, durationMinutes: 30, priority: "high", weekdays: [1, 3, 5] },
-  { title: "Musculação", category: "Força", xpReward: 90, durationMinutes: 45, priority: "high" },
+  { title: "Calistenia", category: "Força", xpReward: 90, durationMinutes: 30, priority: "high", weekdays: [1, 3, 5], skillSlug: "strength" },
+  { title: "Musculação", category: "Força", xpReward: 90, durationMinutes: 45, priority: "high", skillSlug: "strength" },
 ];
+
+// Garante os protocolos de skill do dia para o usuário, sem duplicar (idempotente por título + dueDate).
+export async function ensureDailySkillMissions(userId: number, dateKey = getLocalDateKey()) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível");
+  const existing = await db.select({ title: missions.title }).from(missions).where(and(eq(missions.userId, userId), eq(missions.dueDate, dateKey)));
+  const existingTitles = new Set(existing.map(row => row.title));
+  const toCreate = dailySkillMissionTemplates.filter(item => !existingTitles.has(item.title));
+  if (!toCreate.length) return;
+  await db.insert(missions).values(toCreate.map(item => ({
+    ...item,
+    userId,
+    type: "daily" as const,
+    priority: "high" as const,
+    status: "active" as const,
+    dueDate: dateKey,
+    isSystem: true,
+  })));
+}
 
 function daysAgoDate(days: number) {
   const date = new Date();
@@ -246,8 +282,12 @@ export async function ensureSeedData(userId: number) {
   if (!(await db.select({ id: achievements.id }).from(achievements).where(eq(achievements.userId, userId)).limit(1)).length) {
     await db.insert(achievements).values(achievementSeeds.map(item => ({ ...item, userId })));
   }
-  // Skills, histórico de atividade (heatmap) e timeline começam vazios — vão se preenchendo com o uso.
+  if (!(await db.select({ id: skills.id }).from(skills).where(eq(skills.userId, userId)).limit(1)).length) {
+    await db.insert(skills).values(skillSeeds.map(item => ({ ...item, userId, level: 1, xp: 0, totalMinutes: 0, rank: skillRankForLevel(1) })));
+  }
+  // Histórico de atividade (heatmap) e timeline começam vazios — vão se preenchendo com o uso.
   await ensureDailySystemMission(userId);
+  await ensureDailySkillMissions(userId);
   await ensureDailyRoutineMissions(userId);
   await ensureWeeklyBoss(userId);
   await touchStreak(userId);
@@ -261,7 +301,7 @@ export async function ensureDailySystemMission(userId: number, dateKey = getLoca
 
   const pool = [
     { title: "Tríade Antes do Meio-dia", description: "Conclua três pequenas tarefas antes das 12h.", category: "Disciplina", xpReward: 90, skillSlug: "programming" },
-    { title: "Corpo em Movimento", description: "Realize 30 minutos de atividade física hoje.", category: "Força", xpReward: 110, skillSlug: "training" },
+    { title: "Corpo em Movimento", description: "Realize 30 minutos de atividade física hoje.", category: "Força", xpReward: 110, skillSlug: "strength" },
     { title: "Mente Afiada", description: "Complete 45 minutos de estudo sem distrações.", category: "Inteligência", xpReward: 100, skillSlug: "programming" },
     { title: "Silêncio do Caçador", description: "Medite por 15 minutos e registre um aprendizado.", category: "Disciplina", xpReward: 75, skillSlug: "meditation" },
     { title: "Capítulo do Despertar", description: "Leia por 30 minutos e anote uma ideia útil.", category: "Inteligência", xpReward: 80, skillSlug: "reading" },
@@ -307,7 +347,7 @@ export async function ensureDailyRoutineMissions(userId: number, dateKey = getLo
     category: item.category,
     xpReward: item.xpReward,
     durationMinutes: item.durationMinutes,
-    skillSlug: null,
+    skillSlug: item.skillSlug ?? null,
     priority: item.priority,
     status: "active" as const,
     dueDate: dateKey,
@@ -322,6 +362,7 @@ export async function backfillDayMissions(userId: number, dateKey: string) {
   if (dateKey > today) throw new Error("Não é possível gerar missões para uma data futura.");
   if (dateKey < daysAgoDate(60)) throw new Error("Data muito antiga — o limite é 60 dias atrás.");
   await ensureDailySystemMission(userId, dateKey);
+  await ensureDailySkillMissions(userId, dateKey);
   await ensureDailyRoutineMissions(userId, dateKey);
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível");
@@ -427,7 +468,7 @@ async function grantXp(userId: number, xpReward: number, reason: string, skillSl
     const skill = (await db.select().from(skills).where(and(eq(skills.userId, userId), eq(skills.slug, skillSlug))).limit(1))[0];
     if (skill) {
       const result = applySkillXp(skill.level, skill.xp, Math.max(10, Math.round(xpReward * 0.65)));
-      await db.update(skills).set({ level: result.level, xp: result.xp, totalMinutes: skill.totalMinutes + durationMinutes, lastEvolvedAt: new Date() }).where(eq(skills.id, skill.id));
+      await db.update(skills).set({ level: result.level, xp: result.xp, rank: skillRankForLevel(result.level), totalMinutes: skill.totalMinutes + durationMinutes, lastEvolvedAt: new Date() }).where(eq(skills.id, skill.id));
       if (result.levelsGained > 0) {
         skillLevelUp = { name: skill.name, level: result.level };
         await db.insert(notifications).values({ userId, type: "skill", title: "SKILL EVOLUÍDA", message: `${skill.name} alcançou o nível ${result.level}.` });
@@ -486,15 +527,17 @@ export async function deleteMission(userId: number, id: number) {
   return { success: true };
 }
 
-export async function duplicateMission(userId: number, id: number) {
+export async function duplicateMission(userId: number, id: number, dueDate?: string) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível");
   const source = (await db.select().from(missions).where(and(eq(missions.userId, userId), eq(missions.id, id))).limit(1))[0];
   if (!source) throw new Error("Missão não encontrada");
+  // A cópia mantém o título original e aparece apenas no dia de destino (padrão: o mesmo da origem).
+  const targetDate = dueDate ?? source.dueDate;
   return createMission(userId, {
-    title: duplicateMissionTitle(source.title), description: source.description ?? undefined, type: source.type,
+    title: source.title, description: source.description ?? undefined, type: source.type,
     category: source.category, xpReward: source.xpReward, durationMinutes: source.durationMinutes,
-    skillSlug: source.skillSlug, priority: source.priority, dueDate: source.dueDate,
+    skillSlug: source.skillSlug, priority: source.priority, dueDate: targetDate,
   });
 }
 
@@ -632,6 +675,7 @@ export async function uncompleteMission(userId: number, id: number) {
       await db.update(skills).set({
         level: recomputed.level,
         xp: recomputed.xp,
+        rank: skillRankForLevel(recomputed.level),
         totalMinutes: Math.max(0, skill.totalMinutes - mission.durationMinutes),
       }).where(eq(skills.id, skill.id));
     }

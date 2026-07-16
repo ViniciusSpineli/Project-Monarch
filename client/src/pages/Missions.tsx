@@ -1,6 +1,7 @@
 import { ErrorSector, LoadingSector, PageHeader, SystemCard } from "@/components/SystemShell";
 import { trpc } from "@/lib/trpc";
-import { CalendarDays, Check, ChevronDown, Clock3, Copy, Edit3, Filter, Plus, Search, ShieldAlert, Sparkles, Target, Trash2, X, Zap } from "lucide-react";
+import { isSkillProtocolMission } from "@shared/systemMissions";
+import { CalendarDays, CalendarPlus, Check, ChevronDown, Clock3, Copy, Edit3, Filter, Plus, Search, ShieldAlert, Sparkles, Target, Trash2, X, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -37,6 +38,9 @@ export default function Missions() {
   const [group, setGroup] = useState<"none" | "type" | "category" | "status">("none");
   const [sort, setSort] = useState<"newest" | "xp" | "priority" | "due">("newest");
   const [modal, setModal] = useState<{ mode: "create" | "edit"; id?: number; data: MissionForm } | null>(null);
+  // Clonar missão para outra data: guarda a missão alvo e o dia escolhido (padrão: amanhã).
+  const [cloneTarget, setCloneTarget] = useState<{ id: number; title: string } | null>(null);
+  const [cloneDate, setCloneDate] = useState(() => localDateKey(1));
   // Filtro de dia do quadro: abre já no dia atual; vazio = todas as datas.
   // Também é a data usada para gerar rotina retroativa.
   const [dayFilter, setDayFilter] = useState(() => localDateKey());
@@ -53,6 +57,10 @@ export default function Missions() {
   const update = trpc.missions.update.useMutation({ onSuccess: () => { toast.success("Missão recalibrada."); setModal(null); invalidate(); }, onError: e => toast.error(e.message) });
   const remove = trpc.missions.delete.useMutation({ onSuccess: () => { toast.success("Missão removida do registro."); invalidate(); }, onError: e => toast.error(e.message) });
   const duplicate = trpc.missions.duplicate.useMutation({ onSuccess: () => { toast.success("Missão duplicada."); invalidate(); }, onError: e => toast.error(e.message) });
+  const clone = trpc.missions.duplicate.useMutation({
+    onSuccess: mission => { toast.success(`Missão clonada para ${new Date(`${mission.dueDate}T12:00:00`).toLocaleDateString("pt-BR")}.`); setCloneTarget(null); invalidate(); },
+    onError: e => toast.error(e.message),
+  });
   const complete = trpc.missions.complete.useMutation({ onSuccess: result => { toast.success(`Missão concluída: +${result.mission.xpReward} XP`); invalidate(); }, onError: e => toast.error(e.message) });
   const uncomplete = trpc.missions.uncomplete.useMutation({ onSuccess: () => { toast("Conclusão desfeita — XP e progresso revertidos."); invalidate(); }, onError: e => toast.error(e.message) });
 
@@ -64,6 +72,9 @@ export default function Missions() {
       const matchesDay = !dayFilter || item.dueDate === dayFilter;
       return matchesSearch && matchesDay && (status === "all" || item.status === status) && (type === "all" || item.type === type);
     }).sort((a, b) => {
+      // Missões do Sistema sempre no topo, independente da ordenação escolhida.
+      const systemFirst = Number(b.isSystem) - Number(a.isSystem);
+      if (systemFirst) return systemFirst;
       if (sort === "xp") return b.xpReward - a.xpReward;
       if (sort === "priority") return priorityOrder[b.priority] - priorityOrder[a.priority];
       if (sort === "due") return a.dueDate.localeCompare(b.dueDate);
@@ -139,13 +150,14 @@ export default function Missions() {
                 onClick={() => mission.status === "completed" ? uncomplete.mutate({ id: mission.id }) : complete.mutate({ id: mission.id })}
               ><Check size={16} /></button>
               <div className="mission-content-full">
-                <div className="mission-labels"><span>{typeLabels[mission.type]}</span><span>{mission.category}</span>{mission.isSystem && <b>SISTEMA</b>}<em>{mission.priority}</em></div>
+                <div className="mission-labels"><span>{typeLabels[mission.type]}</span><span>{mission.category}</span><em>{mission.priority}</em>{isSkillProtocolMission(mission) ? <b className="system-mission-tag">MISSÃO DO SISTEMA</b> : mission.isSystem && <b>SISTEMA</b>}</div>
                 <h3>{mission.title}</h3>
                 {mission.description && <p>{mission.description}</p>}
                 <div className="mission-metadata"><span><Clock3 size={13} /> {mission.durationMinutes} min</span><span><Target size={13} /> {new Date(`${mission.dueDate}T12:00:00`).toLocaleDateString("pt-BR")}</span><strong><Zap size={13} /> +{mission.xpReward} XP</strong></div>
               </div>
               <div className="mission-actions">
                 <button title="Duplicar" onClick={() => duplicate.mutate({ id: mission.id })}><Copy size={15} /></button>
+                <button title="Clonar para outro dia" onClick={() => { setCloneDate(localDateKey(1)); setCloneTarget({ id: mission.id, title: mission.title }); }}><CalendarPlus size={15} /></button>
                 <button title="Editar" onClick={() => setModal({ mode: "edit", id: mission.id, data: { title: mission.title, description: mission.description ?? "", type: mission.type, category: mission.category, xpReward: mission.xpReward, durationMinutes: mission.durationMinutes, skillSlug: mission.skillSlug, priority: mission.priority, dueDate: mission.dueDate } })}><Edit3 size={15} /></button>
                 {!mission.isSystem && <button title="Excluir" className="delete" onClick={() => { if (window.confirm("Remover esta missão do registro?")) remove.mutate({ id: mission.id }); }}><Trash2 size={15} /></button>}
               </div>
@@ -154,12 +166,30 @@ export default function Missions() {
         </section>)}
       </div>
       <MissionModal modal={modal} setModal={setModal} onSubmit={data => modal?.mode === "edit" && modal.id ? update.mutate({ id: modal.id, data }) : create.mutate(data)} pending={create.isPending || update.isPending} />
+
+      <AnimatePresence>
+        {cloneTarget && (
+          <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={e => e.target === e.currentTarget && setCloneTarget(null)}>
+            <motion.form className="mission-modal clone-modal" initial={{ opacity: 0, scale: .95, y: 14 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: .97, y: 8 }} transition={{ duration: .2 }} onSubmit={e => { e.preventDefault(); clone.mutate({ id: cloneTarget.id, dueDate: cloneDate }); }}>
+              <div className="modal-head"><div><span>REPLICAR CONTRATO</span><h2>Clonar missão</h2></div><button type="button" onClick={() => setCloneTarget(null)}><X size={19} /></button></div>
+              <div className="modal-fields">
+                <p className="clone-mission-name"><Copy size={14} /> {cloneTarget.title}</p>
+                <label className="field-wide"><span>CLONAR PARA O DIA</span><input type="date" required value={cloneDate} onChange={e => setCloneDate(e.target.value)} /></label>
+              </div>
+              <div className="modal-actions"><button type="button" className="system-button secondary" onClick={() => setCloneTarget(null)}>Cancelar</button><button className="system-button" disabled={clone.isPending || !cloneDate}>{clone.isPending ? "Clonando..." : "Clonar missão"}</button></div>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
 
 function MissionModal({ modal, setModal, onSubmit, pending }: { modal: { mode: "create" | "edit"; id?: number; data: MissionForm } | null; setModal: (value: null | { mode: "create" | "edit"; id?: number; data: MissionForm }) => void; onSubmit: (data: MissionForm) => void; pending: boolean }) {
   const [form, setForm] = useState<MissionForm>(emptyMission);
+  // Skills reais do usuário para o vínculo (cacheadas pelo dashboard).
+  const dashboard = trpc.dashboard.get.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
+  const skillOptions = dashboard.data?.skills ?? [];
   const activeKey = modal ? `${modal.mode}-${modal.id ?? "new"}` : "closed";
   return <AnimatePresence>{modal && <motion.div key={activeKey} className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={e => e.target === e.currentTarget && setModal(null)}><motion.form className="mission-modal" initial={{ opacity: 0, scale: .95, y: 14 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: .97, y: 8 }} transition={{ duration: .22 }} onSubmit={e => { e.preventDefault(); onSubmit(form === emptyMission ? modal.data : form); }} onAnimationStart={() => setForm(modal.data)}>
     <div className="modal-head"><div><span>{modal.mode === "create" ? "NOVO CONTRATO" : "RECALIBRAR CONTRATO"}</span><h2>{modal.mode === "create" ? "Criar missão" : "Editar missão"}</h2></div><button type="button" onClick={() => setModal(null)}><X size={19} /></button></div>
@@ -172,7 +202,7 @@ function MissionModal({ modal, setModal, onSubmit, pending }: { modal: { mode: "
       <label><span>DATA LIMITE</span><input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} /></label>
       <label><span>RECOMPENSA XP</span><input type="number" min={5} max={5000} value={form.xpReward} onChange={e => setForm({ ...form, xpReward: Number(e.target.value) })} /></label>
       <label><span>DURAÇÃO (MIN)</span><input type="number" min={0} max={1440} value={form.durationMinutes} onChange={e => setForm({ ...form, durationMinutes: Number(e.target.value) })} /></label>
-      <label className="field-wide"><span>SKILL VINCULADA</span><select value={form.skillSlug ?? "none"} onChange={e => setForm({ ...form, skillSlug: e.target.value === "none" ? null : e.target.value })}><option value="none">Nenhuma skill</option><option value="programming">Programação</option><option value="strength">Treino de Força</option><option value="reading">Leitura Estratégica</option><option value="meditation">Meditação</option><option value="cardio">Cardio</option></select></label>
+      <label className="field-wide"><span>SKILL VINCULADA</span><select value={form.skillSlug ?? "none"} onChange={e => setForm({ ...form, skillSlug: e.target.value === "none" ? null : e.target.value })}><option value="none">Nenhuma skill</option>{skillOptions.map(skill => <option value={skill.slug} key={skill.id}>{skill.name} — Nv. {skill.level}</option>)}</select></label>
     </div>
     <div className="modal-actions"><button type="button" className="system-button secondary" onClick={() => setModal(null)}>Cancelar</button><button className="system-button" disabled={pending || form.title.trim().length < 3}>{pending ? "Sincronizando..." : modal.mode === "create" ? "Registrar missão" : "Salvar alterações"}</button></div>
   </motion.form></motion.div>}</AnimatePresence>;

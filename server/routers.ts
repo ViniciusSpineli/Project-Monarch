@@ -128,8 +128,8 @@ export const appRouter = router({
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ ctx, input }) => deleteMission(ctx.user.id, input.id)),
     duplicate: protectedProcedure
-      .input(z.object({ id: z.number().int().positive() }))
-      .mutation(({ ctx, input }) => duplicateMission(ctx.user.id, input.id)),
+      .input(z.object({ id: z.number().int().positive(), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }))
+      .mutation(({ ctx, input }) => duplicateMission(ctx.user.id, input.id, input.dueDate)),
     complete: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ ctx, input }) => completeMission(ctx.user.id, input.id)),
