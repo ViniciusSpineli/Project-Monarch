@@ -1,0 +1,14 @@
+{
+  "name": "O Sistema — Ascensão",
+  "short_name": "O Sistema",
+  "description": "Evolução pessoal gamificada em estilo RPG.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080a16",
+  "theme_color": "#080a16",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,4 +1,5 @@
 import { ErrorSector, LoadingSector, PageHeader, SystemCard } from "@/components/SystemShell";
+import { RankLevelBadge } from "@/components/RankLevelBadge";
 import { rankImages } from "@/lib/rankImages";
 import { trpc } from "@/lib/trpc";
 import { Crown, Flame, Gauge, Swords, Zap } from "lucide-react";
@@ -118,7 +119,7 @@ export default function FocusMode() {
               )}
               <div className="hunter-portrait-glow" />
               <div className="hunter-rank-tag"><span>RANK</span><strong>{character.rank}</strong></div>
-              <div className="hero-level-badge"><span>LV</span><strong>{character.level}</strong></div>
+              <RankLevelBadge level={character.level} currentXp={character.currentXp} rank={character.rank} />
             </div>
           </TiltCard>
           <div className="hunter-portrait-info">

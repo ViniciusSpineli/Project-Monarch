@@ -1,5 +1,7 @@
 import { ErrorSector, LoadingSector, PageHeader, SystemCard } from "@/components/SystemShell";
 import { rankImages } from "@/lib/rankImages";
+import { RankLevelBadge } from "@/components/RankLevelBadge";
+import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { isSkillProtocolMission } from "@shared/systemMissions";
 import {
@@ -36,6 +38,7 @@ const motivation = [
 
 export default function Dashboard() {
   const utils = trpc.useUtils();
+  const { user } = useAuth();
   const query = trpc.dashboard.get.useQuery(undefined, { refetchOnWindowFocus: false });
   const [levelUp, setLevelUp] = useState<null | { level: number; title: string; gains: Record<string, number> }>(null);
   const complete = trpc.missions.complete.useMutation({
@@ -85,10 +88,10 @@ export default function Dashboard() {
                 <span>{character.rank?.[0]?.toUpperCase() ?? "C"}</span>
               )}
             </div>
-            <div className="hero-level-badge"><span>LV</span><strong>{character.level}</strong></div>
+            <RankLevelBadge level={character.level} currentXp={character.currentXp} rank={character.rank} />
           </div>
           <div className="hero-info">
-            <div className="hero-id"><span>JOGADOR #0001</span><b>STATUS: DESPERTO</b></div>
+            <div className="hero-id"><span>JOGADOR: {user?.username ?? "—"}</span><b>STATUS: DESPERTO</b></div>
             <h2>{character.name}</h2>
             <div className="hero-title"><Crown size={15} /> {character.title}</div>
             <div className="xp-block">

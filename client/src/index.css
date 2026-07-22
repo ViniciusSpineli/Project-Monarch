@@ -196,6 +196,32 @@ button:active, .system-button:active, .nav-item:active { transform: scale(.97); 
 .hero-level-badge { position: absolute; z-index: 3; right: 18px; bottom: 22px; width: 62px; height: 62px; display: grid; place-items: center; align-content: center; clip-path: polygon(50% 0, 92% 24%, 92% 76%, 50% 100%, 8% 76%, 8% 24%); background: linear-gradient(145deg,#164e63,#312e81); color: white; filter: drop-shadow(0 0 16px rgba(34,211,238,.25)); }
 .hero-level-badge span { font: 700 7px var(--font-display); letter-spacing: .14em; color: #a5f3fc; }
 .hero-level-badge strong { font: 700 23px/1 var(--font-display); }
+/* Badge de nível clicável: o wrapper assume a posição; o badge vira botão. */
+.rank-level-badge-wrap { position: absolute; z-index: 3; right: 18px; bottom: 22px; }
+.rank-level-badge { position: static; right: auto; bottom: auto; top: auto; padding: 0; border: 0; cursor: pointer; transition: filter .15s; }
+.rank-level-badge:hover { filter: drop-shadow(0 0 20px rgba(34,211,238,.5)); }
+.rank-progress-catch { position: fixed; inset: 0; z-index: 40; }
+.rank-progress-pop { position: absolute; z-index: 41; top: calc(100% + 9px); right: 0; width: 232px; padding: 14px; text-align: left; background: rgba(10,14,30,.98); border: 1px solid rgba(103,232,249,.32); border-radius: 13px; box-shadow: 0 24px 70px rgba(0,0,0,.55), 0 0 40px rgba(34,211,238,.08); }
+.rank-progress-head { display: flex; align-items: center; gap: 6px; color: #67e8f9; font: 700 8px var(--font-display); letter-spacing: .16em; }
+.rank-progress-now { display: flex; align-items: baseline; gap: 8px; margin: 11px 0 9px; }
+.rank-progress-now small { color: #6b7a99; font: 700 7px var(--font-display); letter-spacing: .1em; }
+.rank-progress-now strong { color: #edf3ff; font: 700 22px/1 var(--font-display); }
+.rank-progress-now em { color: #8ea2c8; font-size: 11px; font-style: normal; margin-left: auto; }
+.rank-progress-next { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 9px 0; border-top: 1px solid rgba(83,108,161,.18); color: #8ea2c8; font-size: 11px; }
+.rank-progress-next b { color: #c4b5fd; font: 700 15px var(--font-display); }
+.rank-progress-stats { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 7px; }
+.rank-progress-stats li { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.rank-progress-stats span { color: #7e8ca9; font-size: 11px; }
+.rank-progress-stats strong { color: #67e8f9; font: 700 12px var(--font-display); }
+.rank-progress-max { margin: 10px 0 0; color: #fbbf24; font-size: 11px; line-height: 1.5; }
+html:not(.dark) .rank-progress-pop { background: #ffffff; border-color: var(--l-border-strong); box-shadow: 0 24px 60px rgba(30,50,90,.18); }
+html:not(.dark) .rank-progress-head { color: #0891b2; }
+html:not(.dark) .rank-progress-now strong { color: var(--l-ink-strong); }
+html:not(.dark) .rank-progress-now em { color: var(--l-muted); }
+html:not(.dark) .rank-progress-next { color: var(--l-muted); border-top-color: var(--l-border); }
+html:not(.dark) .rank-progress-next b { color: #7c3aed; }
+html:not(.dark) .rank-progress-stats span { color: var(--l-muted); }
+html:not(.dark) .rank-progress-stats strong { color: #0891b2; }
 .hero-info { position: relative; z-index: 2; min-width: 0; }
 .hero-id { display: flex; align-items: center; gap: 10px; color: #63718f; font: 700 8px var(--font-display); letter-spacing: .15em; }
 .hero-id b { padding: 5px 7px; color: #6ee7b7; background: rgba(52,211,153,.08); border: 1px solid rgba(52,211,153,.18); border-radius: 5px; }
@@ -397,6 +423,7 @@ html:not(.dark) .clone-mission-name { background: #f3f6fc; border-color: var(--l
 .hunter-rank-tag span { color: #7785a9; font: 700 8px var(--font-display); letter-spacing: .18em; }
 .hunter-rank-tag strong { color: #a5f3fc; font: 700 26px/1 var(--font-display); text-shadow: 0 0 18px rgba(34,211,238,.5); }
 .hunter-portrait-card .hero-level-badge { bottom: auto; top: 18px; }
+.hunter-portrait-card .rank-level-badge-wrap { bottom: auto; top: 18px; }
 .hunter-portrait-info { position: relative; z-index: 2; padding: 16px 6px 22px; }
 .hunter-portrait-info .hero-stats strong { display: inline-flex; align-items: center; gap: 5px; }
 .hunter-side { display: grid; gap: 18px; grid-template-rows: auto 1fr; }
@@ -550,7 +577,7 @@ html:not(.dark) .hunter-attribute strong { color: var(--l-ink); }
 .journal-form { padding-bottom:24px; }
 
 @media (max-width:1200px) { .mission-stat-grid,.evolution-summary,.stats-summary { grid-template-columns:repeat(2,1fr); }.mission-controls{grid-template-columns:repeat(2,1fr)}.search-field{grid-column:span 2}.focus-layout{grid-template-columns:1fr}.focus-chamber{min-height:600px}.hunter-layout{grid-template-columns:1fr}.hunter-portrait{height:400px}.journal-grid{grid-template-columns:1fr}.journal-intro{position:static}.records-grid{grid-template-columns:1fr} }
-@media (max-width:760px) { .mission-stat-grid,.evolution-summary,.stats-summary{grid-template-columns:1fr 1fr}.mission-stat-grid .system-card,.evolution-summary .system-card,.stats-summary .system-card{min-height:82px;padding:14px}.mission-stat-grid strong,.evolution-summary strong,.stats-summary strong{font-size:19px}.mission-controls{grid-template-columns:1fr}.search-field{grid-column:auto}.mission-card-full{grid-template-columns:38px 1fr;padding:14px;}.mission-actions{grid-column:2;justify-content:flex-end}.mission-content-full p{display:none}.modal-fields,.journal-form{grid-template-columns:1fr}.modal-fields .field-wide,.journal-form .wide{grid-column:auto}.modal-actions{flex-direction:column-reverse}.modal-actions .system-button{width:100%}.focus-chamber{min-height:520px;padding:17px}.timer-primary{min-width:155px}.focus-tips{grid-template-columns:1fr 1fr}.stats-grid{grid-template-columns:1fr}.chart-wide{grid-column:auto}.chart-area,.chart-area.tall{height:270px;padding:12px}.card-head{padding:15px}.training-badges{display:none}.session-table-head,.session-table-row{grid-template-columns:1.2fr .7fr .8fr}.session-table-head span:last-child,.session-table-row span:last-child{display:none}.timeline-body{padding:14px}.timeline-day{grid-template-columns:48px 1fr;gap:8px}.timeline-events{padding-left:12px}.timeline-event{grid-template-columns:32px 1fr;padding:11px}.timeline-event>strong{grid-column:2}.journal-entry{grid-template-columns:48px 1fr;padding:14px}.journal-entry>svg{display:none}.records-grid{display:block}.records-grid>.system-card+ .system-card{margin-top:18px} }
+@media (max-width:760px) { .mission-stat-grid,.evolution-summary,.stats-summary{grid-template-columns:1fr 1fr}.mission-stat-grid .system-card,.evolution-summary .system-card,.stats-summary .system-card{min-height:82px;padding:14px}.mission-stat-grid strong,.evolution-summary strong,.stats-summary strong{font-size:19px}.mission-controls{grid-template-columns:1fr}.search-field{grid-column:auto}.mission-card-full{grid-template-columns:38px 1fr;gap:11px;align-items:start;min-height:auto;padding:15px 14px;}.mission-check{margin-top:2px}.mission-actions{grid-column:2;justify-content:flex-end}.mission-content-full p{display:block;font-size:11px;line-height:1.55;margin:6px 0 10px}.modal-fields,.journal-form{grid-template-columns:1fr}.modal-fields .field-wide,.journal-form .wide{grid-column:auto}.modal-actions{flex-direction:column-reverse}.modal-actions .system-button{width:100%}.focus-chamber{min-height:520px;padding:17px}.timer-primary{min-width:155px}.focus-tips{grid-template-columns:1fr 1fr}.stats-grid{grid-template-columns:1fr}.chart-wide{grid-column:auto}.chart-area,.chart-area.tall{height:270px;padding:12px}.card-head{padding:15px}.training-badges{display:none}.session-table-head,.session-table-row{grid-template-columns:1.2fr .7fr .8fr}.session-table-head span:last-child,.session-table-row span:last-child{display:none}.timeline-body{padding:14px}.timeline-day{grid-template-columns:48px 1fr;gap:8px}.timeline-events{padding-left:12px}.timeline-event{grid-template-columns:32px 1fr;padding:11px}.timeline-event>strong{grid-column:2}.journal-entry{grid-template-columns:48px 1fr;padding:14px}.journal-entry>svg{display:none}.records-grid{display:block}.records-grid>.system-card+ .system-card{margin-top:18px} }
 
 /* ==========================================================================
  * Menu de perfil (topo) + modal de aprovações — base (tema escuro)
@@ -585,6 +612,13 @@ html:not(.dark) .hunter-attribute strong { color: var(--l-ink); }
 .backfill-row > span { flex: 1; min-width: 240px; line-height: 1.45; }
 .backfill-row input[type="date"] { height: 38px; padding: 0 10px; color: #c9d4e8; background: rgba(9,13,29,.6); border: 1px solid rgba(81,108,162,.22); border-radius: 9px; font-size: 11px; color-scheme: dark; }
 .backfill-row .system-button { min-height: 38px; }
+.filters-toggle { display: grid; place-items: center; width: 38px; height: 38px; flex-shrink: 0; color: #8ea2c8; background: rgba(9,13,29,.6); border: 1px solid rgba(81,108,162,.22); border-radius: 9px; cursor: pointer; transition: color .15s, border-color .15s, background .15s; }
+.filters-toggle:hover { color: #a5f3fc; border-color: rgba(34,211,238,.45); background: rgba(15,22,44,.75); }
+.filters-toggle svg { color: inherit; }
+/* Sem grade de filtros, a linha de data vira o topo do card. */
+.mission-control-card.collapsed .backfill-row { border-top: 0; }
+html:not(.dark) .filters-toggle { color: #4a5c7a; background: #ffffff; border-color: var(--l-border-strong); }
+html:not(.dark) .filters-toggle:hover { color: #0891b2; border-color: #0891b2; }
 
 /* ==========================================================================
  * TEMA CLARO — "modo branco". Ativado quando o <html> NÃO tem a classe .dark.

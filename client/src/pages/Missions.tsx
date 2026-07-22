@@ -1,7 +1,7 @@
 import { ErrorSector, LoadingSector, PageHeader, SystemCard } from "@/components/SystemShell";
 import { trpc } from "@/lib/trpc";
 import { isSkillProtocolMission } from "@shared/systemMissions";
-import { CalendarDays, CalendarPlus, Check, ChevronDown, Clock3, Copy, Edit3, Filter, Plus, Search, ShieldAlert, Sparkles, Target, Trash2, X, Zap } from "lucide-react";
+import { CalendarDays, CalendarPlus, Check, ChevronDown, ChevronUp, Clock3, Copy, Edit3, Filter, Plus, Search, ShieldAlert, Sparkles, Target, Trash2, X, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -44,6 +44,8 @@ export default function Missions() {
   // Filtro de dia do quadro: abre já no dia atual; vazio = todas as datas.
   // Também é a data usada para gerar rotina retroativa.
   const [dayFilter, setDayFilter] = useState(() => localDateKey());
+  // Card de filtros recolhível: aberto por padrão, minimizável pela setinha.
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
   const invalidate = () => { utils.missions.list.invalidate(); utils.dashboard.get.invalidate(); };
   const backfill = trpc.missions.backfillDay.useMutation({
@@ -110,14 +112,18 @@ export default function Missions() {
         <SystemCard accent="#f59e0b"><Sparkles size={18} /><div><span>TAXA DE CONCLUSÃO</span><strong>{active + completed ? Math.round(completed / (active + completed) * 100) : 0}%</strong></div></SystemCard>
       </div>
 
-      <SystemCard className="mission-control-card">
-        <div className="mission-controls">
-          <label className="search-field"><Search size={16} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Pesquisar missões, categorias..." /></label>
-          <label className="select-field"><Filter size={14} /><select value={status} onChange={e => setStatus(e.target.value)}><option value="all">Todos os status</option><option value="active">Ativas</option><option value="completed">Concluídas</option><option value="expired">Expiradas</option></select><ChevronDown size={13} /></label>
-          <label className="select-field"><select value={type} onChange={e => setType(e.target.value)}><option value="all">Todos os tipos</option>{Object.entries(typeLabels).map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select><ChevronDown size={13} /></label>
-          <label className="select-field"><select value={group} onChange={e => setGroup(e.target.value as typeof group)}><option value="none">Sem agrupamento</option><option value="type">Agrupar por tipo</option><option value="category">Agrupar por categoria</option><option value="status">Agrupar por status</option></select><ChevronDown size={13} /></label>
-          <label className="select-field"><select value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="newest">Mais recentes</option><option value="xp">Maior XP</option><option value="priority">Prioridade</option><option value="due">Prazo</option></select><ChevronDown size={13} /></label>
-        </div>
+      <SystemCard className={`mission-control-card${filtersOpen ? "" : " collapsed"}`}>
+        <AnimatePresence initial={false}>
+          {filtersOpen && (
+            <motion.div className="mission-controls" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: .22 }}>
+              <label className="search-field"><Search size={16} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Pesquisar missões, categorias..." /></label>
+              <label className="select-field"><Filter size={14} /><select value={status} onChange={e => setStatus(e.target.value)}><option value="all">Todos os status</option><option value="active">Ativas</option><option value="completed">Concluídas</option><option value="expired">Expiradas</option></select><ChevronDown size={13} /></label>
+              <label className="select-field"><select value={type} onChange={e => setType(e.target.value)}><option value="all">Todos os tipos</option>{Object.entries(typeLabels).map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select><ChevronDown size={13} /></label>
+              <label className="select-field"><select value={group} onChange={e => setGroup(e.target.value as typeof group)}><option value="none">Sem agrupamento</option><option value="type">Agrupar por tipo</option><option value="category">Agrupar por categoria</option><option value="status">Agrupar por status</option></select><ChevronDown size={13} /></label>
+              <label className="select-field"><select value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="newest">Mais recentes</option><option value="xp">Maior XP</option><option value="priority">Prioridade</option><option value="due">Prazo</option></select><ChevronDown size={13} /></label>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="backfill-row">
           <CalendarDays size={15} />
           <span>
@@ -133,6 +139,16 @@ export default function Missions() {
           )}
           <button type="button" className="system-button" disabled={backfill.isPending || !dayFilter} onClick={() => backfill.mutate({ date: dayFilter })}>
             {backfill.isPending ? "Gerando..." : "Gerar missões do dia"}
+          </button>
+          <button
+            type="button"
+            className="filters-toggle"
+            aria-expanded={filtersOpen}
+            aria-label={filtersOpen ? "Minimizar filtros" : "Expandir filtros"}
+            title={filtersOpen ? "Minimizar filtros" : "Expandir filtros"}
+            onClick={() => setFiltersOpen(open => !open)}
+          >
+            {filtersOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
           </button>
         </div>
       </SystemCard>

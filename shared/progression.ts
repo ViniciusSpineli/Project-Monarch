@@ -52,6 +52,42 @@ export function rankForLevel(level: number) {
   return "Humano";
 }
 
+// Nível mínimo de cada rank — usado para calcular quanto falta para o próximo.
+export const RANK_LADDER = [
+  { level: 8, rank: "E" },
+  { level: 15, rank: "D" },
+  { level: 25, rank: "C" },
+  { level: 40, rank: "B" },
+  { level: 60, rank: "A" },
+  { level: 80, rank: "S" },
+  { level: 90, rank: "Nacional" },
+  { level: 100, rank: "Monarca" },
+] as const;
+
+export type NextRankProgress = {
+  rank: string;
+  targetLevel: number;
+  levelsRemaining: number;
+  // XP restante somando o que falta do nível atual + os níveis intermediários.
+  xpRemaining: number;
+};
+
+// Quanto falta (níveis e XP) para alcançar o próximo rank. null se já é Monarca.
+export function nextRankProgress(level: number, currentXp: number): NextRankProgress | null {
+  const next = RANK_LADDER.find(entry => entry.level > level);
+  if (!next) return null;
+  let xpRemaining = Math.max(0, xpRequiredForLevel(level) - currentXp);
+  for (let l = level + 1; l < next.level; l += 1) {
+    xpRemaining += xpRequiredForLevel(l);
+  }
+  return {
+    rank: next.rank,
+    targetLevel: next.level,
+    levelsRemaining: next.level - level,
+    xpRemaining,
+  };
+}
+
 export function applyXp(state: ProgressionState, earnedXp: number): ProgressionResult {
   const previousLevel = state.level;
   let level = state.level;
