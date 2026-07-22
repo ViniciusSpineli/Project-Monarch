@@ -16,32 +16,24 @@ O *Sistema* acompanha cada missão cumprida e converte disciplina em progressão
 
 ---
 
-## 📸 Preview
-
-<img alt="Dashboard do Ascension System com avatar, nível, XP e missões" src="docs/Painel.png" width="100%" />
+## 📸 Login
 <img alt="Dashboard do Ascension System com avatar, nível, XP e missões" src="docs/Login.png" width="100%" />
-<img alt="Dashboard do Ascension System com avatar, nível, XP e missões" src="docs/Caçador.png" width="100%" />
-<img alt="Dashboard do Ascension System com avatar, nível, XP e missões" src="docs/Estatistiscas.png" width="100%" />
 
 ### 🏰 Dashboard
+<img alt="Dashboard do Ascension System com avatar, nível, XP e missões" src="docs/Painel.png" width="100%" />
 
-<p align="center">
-  <img alt="Dashboard do Ascension System com avatar, nível, XP e missões" src="docs/dashboard.png" width="100%" />
-</p>
-
-### 🎯 Missões
-
-<p align="center">
-  <img alt="Painel de missões com XP, filtros e conclusão instantânea" src="docs/missions.png" width="100%" />
-</p>
+### 📈 Estatísticas do Caçador
+<img alt="Dashboard do Ascension System com avatar, nível, XP e missões" src="docs/Caçador.png" width="100%" />
 
 ### 📈 Estatísticas
+<img alt="Dashboard do Ascension System com avatar, nível, XP e missões" src="docs/Estatistiscas.png" width="100%" />
 
+
+### 🎯 Missões
 <p align="center">
-  <img alt="Gráficos de XP, atributos e mapa de calor de atividade" src="docs/statistics.png" width="100%" />
+  <img alt="Dashboard do Ascension System com avatar, nível, XP e missões" src="docs/Missoes.png" width="100%" />
 </p>
 
-> 💡 Salve os prints das telas na pasta `docs/` com os nomes acima (`dashboard.png`, `missions.png`, `statistics.png`) para que apareçam aqui.
 
 ---
 
